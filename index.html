@@ -151,8 +151,11 @@ tr.packed td{background:#d9f0e1}
     <div class="row">
       <label class="f" for="adminRound">Delivery<select id="adminRound" class="roundSel"></select></label>
       <button type="button" id="toggleOpen"></button>
+      <button type="button" id="makeLive" class="primary">Show this form to customers</button>
+      <button type="button" id="delRound" class="danger">Delete this form</button>
       <button type="button" class="link" data-lockout="admin">Lock</button>
     </div>
+    <p class="hint" id="liveNote"></p>
     <h2>Deliveries &amp; billing</h2>
     <p class="hint" id="feeNote"></p>
     <div class="tbl"><table>
@@ -392,7 +395,7 @@ function fillRoundSelects(){
   if(!viewRoundId || !rounds[viewRoundId]) viewRoundId = currentId || ids[0] || null;
   document.querySelectorAll(".roundSel").forEach(s => {
     if(s.contains(document.activeElement)) return;
-    s.innerHTML = ids.map(id=>`<option value="${esc(id)}">${esc(fmtDate(rounds[id].date||id))}${id===currentId?" (current)":""}</option>`).join("") || `<option>—</option>`;
+    s.innerHTML = ids.map(id=>`<option value="${esc(id)}">${esc(fmtDate(rounds[id].date||id))}${id===currentId?" (live)":""}</option>`).join("") || `<option>—</option>`;
     s.value = viewRoundId || "";
   });
 }
@@ -467,7 +470,16 @@ function renderAdmin(){
   const r = rounds[viewRoundId];
   const tb = $("toggleOpen");
   tb.hidden = !r;
-  if(r){ tb.textContent = r.open ? "Close orders" : "Reopen orders"; tb.className = r.open ? "danger" : "primary"; }
+  if(r){ tb.textContent = r.open ? "Close orders" : "Reopen orders"; tb.className = r.open ? "" : "primary"; }
+  $("makeLive").hidden = !r || viewRoundId === currentId;
+  $("delRound").hidden = !r;
+  const nOrd = roundOrders(viewRoundId).length;
+  $("delRound").textContent = confirmRoundDel === viewRoundId
+    ? (nOrd ? `Confirm: delete form and its ${nOrd} order${nOrd>1?"s":""}` : "Confirm delete")
+    : "Delete this form";
+  $("liveNote").textContent = !r ? "" : viewRoundId === currentId
+    ? "Customers see this form now."
+    : "Customers do not see this form. Press \"Show this form to customers\" to switch.";
   $("pwCard").hidden = false;
   const groups = customerGroups(viewRoundId), share = feeShare(viewRoundId), fee = roundFee(viewRoundId);
   $("feeNote").textContent = groups.length ? `Delivery fee from farmer ${peso(fee)} ÷ ${groups.length} customer${groups.length>1?"s":""} = ${peso(share)} each.` : "";
@@ -499,6 +511,20 @@ $("billBody").addEventListener("click", e => {
     const ids=g.orders.map(o=>o.id); orders=orders.filter(x=>!ids.includes(x.id)); renderAll();
     act("admin_delete_orders", {p_ids:ids}); }
 });
+let confirmRoundDel = null;
+$("makeLive").addEventListener("click", async () => {
+  const rid = viewRoundId; if(!rounds[rid]) return;
+  currentId = rid; renderAll();
+  await act("admin_set_current", {p_round:rid});
+});
+$("delRound").addEventListener("click", async () => {
+  const rid = viewRoundId; if(!rounds[rid]) return;
+  if(confirmRoundDel !== rid){ confirmRoundDel = rid; renderAdmin(); return; }
+  confirmRoundDel = null;
+  delete rounds[rid]; orders = orders.filter(o => o.roundId !== rid); viewRoundId = null; renderAll();
+  await act("admin_delete_round", {p_round:rid});
+});
+document.querySelectorAll(".roundSel").forEach(s => s.addEventListener("change", () => { confirmRoundDel = null; }));
 $("toggleOpen").addEventListener("click", () => {
   const r=rounds[viewRoundId]; if(!r) return; r.open=!r.open; renderAll();
   act("admin_set_open", {p_round:viewRoundId, p_open:r.open});
