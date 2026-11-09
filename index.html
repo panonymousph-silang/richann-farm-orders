@@ -73,6 +73,21 @@ tr.packed td{background:#d9f0e1}
 .manual{display:inline-flex;align-items:center;gap:4px;margin-left:6px}
 .hint{font-size:.8rem;color:var(--muted);margin:0}
 .empty{padding:28px;text-align:center;color:var(--muted)}
+.inv-list{display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+.inv{width:100%;max-width:380px;border:1.5px solid var(--line);border-radius:10px;padding:12px;background:var(--bg);font-size:12px;line-height:1.4;display:flex;flex-direction:column;gap:8px}
+.inv-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.inv-farm{font-family:var(--font-display);font-size:14px;color:var(--leaf)}
+.inv-to{font-size:13px}
+.inv-right{text-align:right;color:var(--muted);font-size:11px}
+.inv-word{font-weight:700;letter-spacing:.14em;color:var(--sky-deep);font-size:12px}
+.inv-t{table-layout:auto;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.inv-t th{font-size:10px;padding:4px 6px}
+.inv-t td{padding:3px 6px;font-size:12px}
+.inv-t tfoot td{background:var(--sky);font-weight:500}
+.inv-t tr.inv-due td{background:var(--sky-head);font-weight:700;font-size:13px}
+.inv-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.inv-note{font-size:10.5px;color:var(--warn)}
+
 @media (max-width:560px){h1{font-size:1.3rem}nav a{padding:8px 10px}td,th{padding:6px 7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -106,6 +121,11 @@ tr.packed td{background:#d9f0e1}
       <div id="orderErr" class="msg err" hidden></div>
       <div><button type="submit" class="primary big" id="orderBtn">Confirm order</button></div>
     </form>
+    <div class="card" id="mySec" hidden>
+      <h2>Check or change my order</h2>
+      <label class="f" for="myName">Your name<select id="myName"></select></label>
+      <div id="myView" class="panel"></div>
+    </div>
   </section>
 
   <!-- LOCK (shared by Farmer and Admin) -->
@@ -159,10 +179,15 @@ tr.packed td{background:#d9f0e1}
     <h2>Deliveries &amp; billing</h2>
     <p class="hint" id="feeNote"></p>
     <div class="tbl"><table>
-      <thead><tr><th>Customer</th><th>Packing</th><th class="n">Subtotal</th><th class="n">Delivery share</th><th class="n">Amount due</th><th>Payment</th><th></th></tr></thead>
+      <thead><tr><th>Customer</th><th class="n">Amount due</th><th>Payment</th><th></th></tr></thead>
       <tbody id="billBody"></tbody>
       <tfoot id="billFoot"></tfoot>
     </table></div>
+    <div id="invHead" class="panel" hidden>
+      <h2>Invoices</h2>
+      <p class="hint">One box per customer. Take one screenshot of a box and send it to that customer.</p>
+    </div>
+    <div id="invoices" class="inv-list"></div>
 
     <div class="card">
       <div class="cardhead"><h2>Create a new order form</h2>
@@ -228,7 +253,7 @@ function showStatus(t, err){ const s=$("status"); if(!t){s.hidden=true;return;} 
 /* ---------- state ---------- */
 let form = {round:null, used:{}};          // customer view
 let rounds = {}, currentId = null, orders = []; // staff view
-let staffLoaded = false, viewRoundId = null, builtFormFor = undefined, draft = {};
+let staffLoaded = false, viewRoundId = null, builtFormFor = undefined;
 
 /* ---------- passwords (kept only for this browser tab) ---------- */
 let pw = {farmer:"", admin:""};
@@ -305,12 +330,10 @@ function customerGroups(rid){
 const roundFee = rid => +(rounds[rid]?.deliveryFee || 0);
 function feeShare(rid){ const n=customerGroups(rid).length; return n ? Math.round(roundFee(rid)/n*100)/100 : 0; }
 
-/* ---------- ORDER FORM ---------- */
-function buildOrderForm(){
-  const r = form.round; builtFormFor = r ? r.id : null; draft = {};
-  const body = $("orderBody");
-  if(!r){ body.innerHTML = `<tr><td colspan="5" class="empty">No order form yet. The farm will post this week's vegetables soon.</td></tr>`; return; }
-  body.innerHTML = r.items.map(it => {
+/* ---------- quantity table (used by the order form and "my order" edit) ---------- */
+function mountQty(tbody, items, prefix, getAvail, isOpen, onTotal){
+  const vals = {};
+  tbody.innerHTML = items.map(it => {
     const opts = (it.unit==="100g"?OPTS_G:OPTS_KG).map(([v,l])=>`<option value="${v}">${l}</option>`).join("");
     const manual = it.unit==="100g" ? `Other (type grams)` : `Over 2 kg (type amount)`;
     const mUnit = it.unit==="100g" ? "g" : "kg";
@@ -319,46 +342,77 @@ function buildOrderForm(){
       <td><b>${esc(it.name)}</b></td>
       <td class="n">${priceText(it)}</td>
       <td class="n" data-avail></td>
-      <td><select id="q-${esc(it.id)}" aria-label="${esc(it.name)} quantity"><option value="">—</option>${opts}<option value="manual">${manual}</option></select>
-        <span class="manual" hidden><input type="number" id="m-${esc(it.id)}" class="num" ${mAttr} aria-label="${esc(it.name)} amount">${mUnit}</span></td>
+      <td><select id="${prefix}q-${esc(it.id)}" aria-label="${esc(it.name)} quantity"><option value="">—</option>${opts}<option value="manual">${manual}</option></select>
+        <span class="manual" hidden><input type="number" id="${prefix}m-${esc(it.id)}" class="num" ${mAttr} aria-label="${esc(it.name)} amount">${mUnit}</span></td>
       <td class="n" data-sub>—</td></tr>`;
   }).join("");
-  body.querySelectorAll("tr[data-id]").forEach(tr => {
-    const id = tr.dataset.id, sel = tr.querySelector("select"), man = tr.querySelector(".manual"), inp = man.querySelector("input");
-    sel.addEventListener("change", () => { man.hidden = sel.value!=="manual"; if(sel.value==="manual") inp.focus(); readDraft(id, sel, inp); });
-    inp.addEventListener("input", () => readDraft(id, sel, inp));
+  const rows = {};
+  tbody.querySelectorAll("tr[data-id]").forEach(tr => {
+    const id = tr.dataset.id, it = items.find(i=>i.id===id);
+    const sel = tr.querySelector("select"), man = tr.querySelector(".manual"), inp = man.querySelector("input");
+    rows[id] = {tr, it, sel, man, inp};
+    const read = () => {
+      let kg = null;
+      if(sel.value==="manual"){ const v=parseFloat(inp.value); if(v>0) kg = it.unit==="100g" ? v/1000 : v; }
+      else if(sel.value) kg = parseFloat(sel.value);
+      if(kg) vals[id]=r3(kg); else delete vals[id];
+      refresh();
+    };
+    sel.addEventListener("change", () => { man.hidden = sel.value!=="manual"; if(sel.value==="manual") inp.focus(); read(); });
+    inp.addEventListener("input", read);
   });
-  updateOrderForm();
+  function refresh(){
+    let total = 0;
+    for(const {tr, it, sel} of Object.values(rows)){
+      const av = getAvail(it), q = vals[it.id];
+      const cell = tr.querySelector("[data-avail]");
+      if(av==null) cell.innerHTML = `<span class="pill wait">In stock</span>`;
+      else if(av<=0) cell.innerHTML = `<span class="pill low">Sold out</span>`;
+      else cell.innerHTML = `<span class="${av<=1?"pill low":""}">${qtyText(it.unit,av)}</span>`;
+      tr.classList.toggle("out", av!=null && av<=0 && !q);
+      sel.disabled = ((av!=null && av<=0) && !q) || !isOpen();
+      sel.querySelectorAll("option").forEach(o => { const v=parseFloat(o.value); if(!isNaN(v)) o.disabled = av!=null && v>av+1e-9; });
+      const sub = q ? lineAmt(it.unit,it.price,q) : 0; total += sub;
+      tr.querySelector("[data-sub]").textContent = q ? peso(sub) : "—";
+    }
+    onTotal(total);
+  }
+  function set(id, kg){
+    const row = rows[id]; if(!row || !kg) return;
+    const opt = [...row.sel.options].find(o => Math.abs(parseFloat(o.value) - kg) < 1e-6);
+    if(opt){ row.sel.value = opt.value; row.man.hidden = true; }
+    else { row.sel.value = "manual"; row.man.hidden = false; row.inp.value = row.it.unit==="100g" ? Math.round(kg*1000) : r3(kg); }
+    vals[id] = r3(kg);
+  }
+  function lines(err){
+    const out = [];
+    for(const {it} of Object.values(rows)){
+      const q = vals[it.id]; if(!q) continue;
+      if(it.unit==="100g" && q < 0.1){ err(`${it.name}: the minimum order is 100 g.`); return null; }
+      const av = getAvail(it);
+      if(av!=null && q > av+1e-9){ err(`${it.name}: only ${qtyText(it.unit,av)} left. Please lower the quantity.`); return null; }
+      out.push({itemId:it.id, qtyKg:q});
+    }
+    return out;
+  }
+  refresh();
+  return {vals, set, refresh, lines};
 }
-function readDraft(id, sel, inp){
-  const it = form.round.items.find(i=>i.id===id);
-  let kg = null;
-  if(sel.value==="manual"){ const v=parseFloat(inp.value); if(v>0) kg = it.unit==="100g" ? v/1000 : v; }
-  else if(sel.value) kg = parseFloat(sel.value);
-  if(kg) draft[id]=r3(kg); else delete draft[id];
+
+/* ---------- ORDER FORM ---------- */
+let orderQty = null;
+function buildOrderForm(){
+  const r = form.round; builtFormFor = r ? r.id : null; orderQty = null;
+  if(!r){ $("orderBody").innerHTML = `<tr><td colspan="5" class="empty">No order form yet. The farm will post this week's vegetables soon.</td></tr>`; $("mySec").hidden = true; return; }
+  orderQty = mountQty($("orderBody"), r.items, "o", formAvail, () => !!form.round?.open, t => $("orderTotal").textContent = peso(t));
   updateOrderForm();
 }
 function updateOrderForm(){
   const r = form.round; if(!r) return;
-  let total = 0;
-  $("orderBody").querySelectorAll("tr[data-id]").forEach(tr => {
-    const it = r.items.find(i=>i.id===tr.dataset.id); if(!it) return;
-    const av = formAvail(it);
-    const cell = tr.querySelector("[data-avail]");
-    if(av==null) cell.innerHTML = `<span class="pill wait">In stock</span>`;
-    else if(av<=0) cell.innerHTML = `<span class="pill low">Sold out</span>`;
-    else cell.innerHTML = `<span class="${av<=1?"pill low":""}">${qtyText(it.unit,av)}</span>`;
-    tr.classList.toggle("out", av!=null && av<=0);
-    const sel = tr.querySelector("select");
-    sel.disabled = (av!=null && av<=0) || !r.open;
-    sel.querySelectorAll("option").forEach(o => { const v=parseFloat(o.value); if(!isNaN(v)) o.disabled = av!=null && v>av+1e-9; });
-    const q = draft[it.id];
-    const sub = q ? lineAmt(it.unit,it.price,q) : 0; total += sub;
-    tr.querySelector("[data-sub]").textContent = q ? peso(sub) : "—";
-  });
-  $("orderTotal").textContent = peso(total);
+  orderQty?.refresh();
   $("orderBtn").disabled = !r.open;
   if(!r.open) showOrderErr("Orders for this delivery are closed.");
+  renderMy();
 }
 function showOrderErr(t){ const e=$("orderErr"); e.textContent=t||""; e.hidden=!t; }
 
@@ -368,26 +422,99 @@ $("orderForm").addEventListener("submit", async ev => {
   if(!r || !r.open){ showOrderErr("Orders are closed right now."); return; }
   const name = $("custName").value.trim();
   if(!name){ showOrderErr("Please enter your name."); $("custName").focus(); return; }
-  const lines = [];
-  for(const it of r.items){
-    const q = draft[it.id]; if(!q) continue;
-    if(it.unit==="100g" && q < 0.1){ showOrderErr(`${it.name}: the minimum order is 100 g.`); return; }
-    const av = formAvail(it);
-    if(av!=null && q > av+1e-9){ showOrderErr(`${it.name}: only ${qtyText(it.unit,av)} left. Please lower the quantity.`); return; }
-    lines.push({itemId:it.id, qtyKg:q});
-  }
+  const lines = orderQty.lines(showOrderErr); if(!lines) return;
   if(!lines.length){ showOrderErr("Please choose at least one vegetable."); return; }
   $("orderBtn").disabled = true;
   try{
     const res = await rpc("place_order", {p_customer:name, p_lines:lines});
     const tot = res.lines.reduce((s,l)=>s+lineAmt(l.unit,l.price,+l.qtyKg),0);
-    $("orderDone").innerHTML = `<div class="msg ok"><b>Thank you, ${esc(name)}! Your order is in.</b><br>${res.lines.map(l=>`${esc(l.name)} ${qtyText(l.unit,+l.qtyKg)}`).join(", ")}<br>Total ${peso(tot)} (delivery fee not included)</div><div><button type="button" id="again">Place another order</button></div>`;
+    $("orderDone").innerHTML = `<div class="msg ok"><b>Thank you, ${esc(name)}! Your order is in.</b><br>${res.lines.map(l=>`${esc(l.name)} ${qtyText(l.unit,+l.qtyKg)}`).join(", ")}<br>Total ${peso(tot)} (delivery fee not included)<br>You can check or change it any time under "Check or change my order".</div><div><button type="button" id="again">Place another order</button></div>`;
     $("orderDone").hidden=false; $("orderForm").hidden=true;
     $("again").onclick = () => { $("orderDone").hidden=true; $("orderForm").hidden=false; $("custName").value=""; builtFormFor=undefined; loadForm(); };
-    loadForm();
+    myName = name; my = null; myMode = "view";
+    await loadForm(); loadMy();
   }catch(e){ showOrderErr(e.message); loadForm(); }
   finally{ $("orderBtn").disabled = false; }
 });
+
+/* ---------- CHECK OR CHANGE MY ORDER ---------- */
+let myName = "", my = null, myMode = "view", myEdit = null, myConfirmCancel = false, myFlash = "";
+const sameName = (a,b) => String(a||"").trim().toLowerCase() === String(b||"").trim().toLowerCase();
+function fillMyNames(){
+  const s = $("myName"), names = form.names || [];
+  $("mySec").hidden = !form.round;
+  if(document.activeElement === s) return;
+  const cur = names.find(n => sameName(n, myName)) || "";
+  s.innerHTML = `<option value="">${names.length ? "Choose your name" : "No orders yet"}</option>` + names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  s.value = cur;
+  if(!cur && myName && my){ my = null; myName = ""; }
+}
+$("myName").addEventListener("change", () => { myFlash = ""; myName = $("myName").value; my = null; myMode = "view"; myConfirmCancel = false; renderMy(); loadMy(); });
+async function loadMy(){
+  if(!myName) return;
+  try{ my = await rpc("customer_order", {p_name: myName}); }
+  catch(e){ my = {error: e.message}; }
+  renderMy();
+}
+function myMine(){ const m = {}; for(const l of my?.lines||[]) m[l.itemId] = +l.qtyKg; return m; }
+function renderMy(){
+  fillMyNames();
+  const v = $("myView");
+  if(!myName){ v.innerHTML = myFlash ? `<div class="msg ok">${esc(myFlash)}</div>` : `<p class="hint">Pick your name to see what you ordered.</p>`; return; }
+  if(!my){ v.innerHTML = `<p class="hint">Loading…</p>`; return; }
+  if(my.error){ v.innerHTML = `<div class="msg err">${esc(my.error)}</div>`; return; }
+  if(!my.lines?.length){ v.innerHTML = `<p class="hint">No order found for this name.</p>`; return; }
+  if(myMode === "edit") return; // the edit table is already on screen
+  let tot = 0;
+  const rows = my.lines.map(l => { const kg = l.packed ? +l.actualKg : +l.qtyKg; const a = lineAmt(l.unit,l.price,kg); tot += a;
+    return `<tr><td>${esc(l.name)}</td><td class="n">${qtyText(l.unit,kg)}</td><td class="n">${priceText(l)}</td><td class="n">${peso(a)}</td></tr>`; }).join("");
+  const canEdit = !my.locked && form.round?.open;
+  v.innerHTML = `<div class="msg ok"><b>We have your order, ${esc(my.customer)}.</b></div>
+    <div class="tbl"><table><thead><tr><th>Vegetable</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Subtotal</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td colspan="3">Total (delivery fee not included)</td><td class="n">${peso(tot)}</td></tr></tfoot></table></div>
+    ${canEdit ? `<div class="row"><button type="button" class="primary" id="myEditBtn">Change my order</button>
+      <button type="button" class="danger" id="myCancelBtn">${myConfirmCancel ? "Confirm: cancel my whole order" : "Cancel my order"}</button></div>`
+      : `<p class="hint">${my.locked ? "The farm has started packing your order, so it can't be changed here. Please message the farm." : "Orders are closed, so changes aren't possible here."}</p>`}
+    <div id="myMsg" hidden></div>`;
+  if(canEdit){
+    $("myEditBtn").onclick = startEdit;
+    $("myCancelBtn").onclick = async () => {
+      if(!myConfirmCancel){ myConfirmCancel = true; renderMy(); return; }
+      myConfirmCancel = false; await saveMy([]);
+    };
+  }
+}
+function startEdit(){
+  myMode = "edit"; const mine = myMine();
+  $("myView").innerHTML = `<p class="hint">Change the quantities, then press Save. Choose "—" to remove an item.</p>
+    <div class="tbl"><table><thead><tr><th>Vegetable</th><th class="n">Price</th><th class="n">Available</th><th>Quantity</th><th class="n">Subtotal</th></tr></thead>
+    <tbody id="myBody"></tbody><tfoot><tr><td colspan="4">Total</td><td class="n" id="myTotal">₱0</td></tr></tfoot></table></div>
+    <div id="myErr" class="msg err" hidden></div>
+    <div class="row"><button type="button" class="primary" id="mySave">Save changes</button><button type="button" id="myBack">Back</button></div>`;
+  const avail = it => it.limitKg==null ? null : r3(formAvail(it) + (mine[it.id]||0));
+  myEdit = mountQty($("myBody"), form.round.items, "e", avail, () => !!form.round?.open, t => $("myTotal").textContent = peso(t));
+  for(const [id,kg] of Object.entries(mine)) myEdit.set(id, kg);
+  myEdit.refresh();
+  const err = t => { const e=$("myErr"); e.textContent=t; e.hidden=!t; };
+  $("myBack").onclick = () => { myMode = "view"; renderMy(); };
+  $("mySave").onclick = async () => {
+    err("");
+    const lines = myEdit.lines(err); if(!lines) return;
+    if(!lines.length){ err("Choose at least one vegetable, or go back and use \"Cancel my order\"."); return; }
+    await saveMy(lines, err);
+  };
+}
+async function saveMy(lines, err){
+  try{
+    const res = await rpc("customer_update", {p_name: myName, p_lines: lines});
+    myMode = "view";
+    if(res?.cancelled){ myName = ""; my = null; myFlash = "Your order was cancelled.";
+      if(!$("orderDone").hidden){ $("orderDone").hidden = true; $("orderForm").hidden = false; $("custName").value = ""; builtFormFor = undefined; }
+      await loadForm(); return; }
+    await loadForm(); await loadMy();
+    const m = $("myMsg"); if(m){ m.className = "msg ok"; m.textContent = "Your changes are saved."; m.hidden = false; }
+  }catch(e){ if(err) err(e.message); else { await loadMy(); const m=$("myMsg"); if(m){ m.className="msg err"; m.textContent=e.message; m.hidden=false; } } }
+}
 
 /* ---------- FARMER ---------- */
 function fillRoundSelects(){
@@ -483,22 +610,32 @@ function renderAdmin(){
   $("pwCard").hidden = false;
   const groups = customerGroups(viewRoundId), share = feeShare(viewRoundId), fee = roundFee(viewRoundId);
   $("feeNote").textContent = groups.length ? `Delivery fee from farmer ${peso(fee)} ÷ ${groups.length} customer${groups.length>1?"s":""} = ${peso(share)} each.` : "";
-  let S=0,F=0,T=0,U=0;
+  let T=0,U=0; const inv=[];
   $("billBody").innerHTML = groups.length ? groups.map(g => {
     const sub=g.orders.reduce((x,o)=>x+orderSub(o),0), tot=sub+share, paid=g.orders.every(o=>o.paid);
-    S+=sub; F+=share; T+=tot; if(!paid) U+=tot;
+    T+=tot; if(!paid) U+=tot;
     const lines=g.orders.flatMap(o=>o.lines||[]), n=lines.length, p=lines.filter(l=>l.packed).length;
-    const det=lines.map(l=>`${esc(l.name)} ${qtyText(l.unit,effKg(l))}`).join(", ");
     const k=esc(g.key);
-    return `<tr><td><div class="cust">${esc(g.name)}${g.orders.length>1?` <span class="detail">(${g.orders.length} orders)</span>`:""}</div><div class="detail">${det}</div></td>
-      <td><span class="pill ${p===n?"ok":"wait"}">${p===n?"Ready":`${p}/${n}`}</span></td>
-      <td class="n">${peso(sub)}</td>
-      <td class="n">${peso(share)}</td>
+    inv.push(`<article class="inv">
+      <div class="inv-top"><div><div class="inv-farm">RichAnn Vegetable Farm</div><div class="inv-to">Bill to <b>${esc(g.name)}</b></div></div>
+        <div class="inv-right"><div class="inv-word">INVOICE</div><div>Delivery ${esc(fmtDate(r.date))}</div></div></div>
+      <table class="inv-t"><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead><tbody>
+      ${lines.map(l=>`<tr><td>${esc(l.name)}</td><td class="n">${qtyText(l.unit,effKg(l))}</td><td class="n">${priceText(l)}</td><td class="n">${peso(lineAmt(l.unit,l.price,effKg(l)))}</td></tr>`).join("")}
+      </tbody><tfoot>
+        <tr><td colspan="3">Subtotal</td><td class="n">${peso(sub)}</td></tr>
+        <tr><td colspan="3">Delivery fee (shared)</td><td class="n">${peso(share)}</td></tr>
+        <tr class="inv-due"><td colspan="3">Total due</td><td class="n">${peso(tot)}</td></tr>
+      </tfoot></table>
+      <div class="inv-foot"><span class="pill ${paid?"ok":"low"}">${paid?"PAID":"PAYMENT DUE"}</span>${p<n?`<span class="inv-note">Packing ${p}/${n}: amounts may change</span>`:""}</div>
+    </article>`);
+    return `<tr><td><div class="cust">${esc(g.name)}</div><div class="detail">${p===n?"Packed":`Packing ${p}/${n}`}${g.orders.length>1?` · ${g.orders.length} orders`:""}</div></td>
       <td class="n"><b>${peso(tot)}</b></td>
       <td><button type="button" class="${paid?"done":""}" data-paid="${k}">${paid?"✓ Paid":"Mark paid"}</button></td>
-      <td><button type="button" class="danger" data-del="${k}">${confirmDel===g.key?"Confirm delete":"Delete"}</button></td></tr>`;
-  }).join("") : `<tr><td colspan="7" class="empty">${staffLoaded?"No orders for this delivery yet.":"Loading…"}</td></tr>`;
-  $("billFoot").innerHTML = groups.length ? `<tr><td colspan="2">Total (${groups.length} customers)</td><td class="n">${peso(S)}</td><td class="n">${peso(F)}</td><td class="n">${peso(T)}</td><td colspan="2">Unpaid ${peso(U)}</td></tr>` : "";
+      <td><button type="button" class="danger" data-del="${k}" aria-label="Delete ${esc(g.name)}'s order">${confirmDel===g.key?"Delete?":"✕"}</button></td></tr>`;
+  }).join("") : `<tr><td colspan="4" class="empty">${staffLoaded?"No orders for this delivery yet.":"Loading…"}</td></tr>`;
+  $("billFoot").innerHTML = groups.length ? `<tr><td>Total · ${groups.length} customers</td><td class="n">${peso(T)}</td><td colspan="2">Unpaid ${peso(U)}</td></tr>` : "";
+  $("invoices").innerHTML = inv.join("");
+  $("invHead").hidden = !inv.length;
 }
 $("billBody").addEventListener("click", e => {
   const p = e.target.closest("button[data-paid]");
