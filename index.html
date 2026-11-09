@@ -172,6 +172,7 @@ tr.packed td{background:#d9f0e1}
       <label class="f" for="adminRound">Delivery<select id="adminRound" class="roundSel"></select></label>
       <button type="button" id="toggleOpen"></button>
       <button type="button" id="makeLive" class="primary">Show this form to customers</button>
+      <button type="button" id="editRound">Edit this form</button>
       <button type="button" id="delRound" class="danger">Delete this form</button>
       <button type="button" class="link" data-lockout="admin">Lock</button>
     </div>
@@ -189,12 +190,15 @@ tr.packed td{background:#d9f0e1}
     </div>
     <div id="invoices" class="inv-list"></div>
 
-    <div class="card">
-      <div class="cardhead"><h2>Create a new order form</h2>
+    <div class="card" id="editorCard">
+      <div class="cardhead"><h2 id="editTitle">Create a new order form</h2>
         <button type="button" id="copyCurrent">Load current list</button></div>
-      <p class="hint">One item per line: "quantity kg name price/kg" or "name price/100g". A quantity sets the stock limit; items without one are unlimited.</p>
-      <textarea id="listText" placeholder="20 kg bokchoy   120/kg&#10;Thai Basil   50/100g"></textarea>
-      <div class="row"><button type="button" id="parseBtn">Load into table</button></div>
+      <div id="pasteArea" class="panel">
+        <p class="hint">One item per line: "quantity kg name price/kg" or "name price/100g". A quantity sets the stock limit; items without one are unlimited.</p>
+        <textarea id="listText" placeholder="20 kg bokchoy   120/kg&#10;Thai Basil   50/100g"></textarea>
+        <div class="row"><button type="button" id="parseBtn">Load into table</button></div>
+      </div>
+      <p class="hint" id="editHint" hidden>Fix names, prices, stock or the delivery date, then press "Save changes". New names and prices also update the orders already placed and their invoices.</p>
       <div class="tbl"><table>
         <thead><tr><th>Vegetable</th><th class="n">Stock (kg)</th><th class="n">Price (₱)</th><th>Unit</th><th></th></tr></thead>
         <tbody id="editBody"></tbody>
@@ -203,6 +207,7 @@ tr.packed td{background:#d9f0e1}
         <button type="button" id="addRow">+ Add row</button>
         <label class="f" for="newDate">Delivery date<input type="date" id="newDate"></label>
         <button type="button" class="primary" id="publishRound">Publish this order form</button>
+        <button type="button" id="cancelEdit" hidden>Cancel editing</button>
       </div>
       <div id="editMsg" hidden></div>
     </div>
@@ -599,7 +604,7 @@ function renderAdmin(){
   tb.hidden = !r;
   if(r){ tb.textContent = r.open ? "Close orders" : "Reopen orders"; tb.className = r.open ? "" : "primary"; }
   $("makeLive").hidden = !r || viewRoundId === currentId;
-  $("delRound").hidden = !r;
+  $("delRound").hidden = !r; $("editRound").hidden = !r;
   const nOrd = roundOrders(viewRoundId).length;
   $("delRound").textContent = confirmRoundDel === viewRoundId
     ? (nOrd ? `Confirm: delete form and its ${nOrd} order${nOrd>1?"s":""}` : "Confirm delete")
@@ -668,7 +673,22 @@ $("toggleOpen").addEventListener("click", () => {
 });
 
 /* list editor */
-let editRows = [];
+let editRows = [], editingId = null;
+function setEditMode(){
+  const ed = !!editingId;
+  $("editTitle").textContent = ed ? `Edit order form · ${fmtDate(rounds[editingId]?.date || "")}` : "Create a new order form";
+  $("pasteArea").hidden = ed; $("copyCurrent").hidden = ed; $("editHint").hidden = !ed; $("cancelEdit").hidden = !ed;
+  $("publishRound").textContent = ed ? "Save changes" : "Publish this order form";
+}
+$("editRound").addEventListener("click", () => {
+  const r = rounds[viewRoundId]; if(!r) return;
+  editingId = viewRoundId;
+  editRows = r.items.map(it => ({id:it.id, name:it.name, limitKg: it.limitKg ?? "", price: it.price, unit: it.unit}));
+  $("newDate").value = r.date; $("editMsg").hidden = true;
+  setEditMode(); renderEdit();
+  $("editorCard").scrollIntoView({behavior:"smooth", block:"start"});
+});
+$("cancelEdit").addEventListener("click", () => { editingId = null; editRows = []; $("newDate").value = new Date(Date.now()+8*3600e3).toISOString().slice(0,10); setEditMode(); renderEdit(); });
 function parseList(text){
   const out=[];
   for(const raw of text.split(/\n/)){
@@ -701,17 +721,28 @@ $("newDate").value = new Date(Date.now()+8*3600e3).toISOString().slice(0,10);
 $("publishRound").onclick = async () => {
   const msg=$("editMsg"), say=(t,ok)=>{msg.textContent=t;msg.className="msg "+(ok?"ok":"err");msg.hidden=false;};
   const items=[], seen={};
+  editRows.forEach(r => { if(r.id) seen[r.id]=1; });
   for(const r of editRows){
     const name=String(r.name).trim(), price=parseFloat(r.price);
     if(!name) continue;
     if(!(price>0)) return say(`Enter a price for ${name}.`);
-    let id=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"item"; while(seen[id]) id+="-2"; seen[id]=1;
+    let id=r.id;
+    if(!id){ id=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"item"; while(seen[id]) id+="-2"; seen[id]=1; }
     const lim=parseFloat(r.limitKg);
     items.push({id,name,price,unit:r.unit==="100g"?"100g":"kg",limitKg: lim>0?lim:null});
   }
   if(!items.length) return say("Add at least one vegetable.");
   const date=$("newDate").value || new Date().toISOString().slice(0,10);
   $("publishRound").disabled = true;
+  if(editingId){
+    try{
+      await rpc("admin_update_round", {p_pw:pw.admin, p_round:editingId, p_date:date, p_items:items});
+      viewRoundId = editingId; editingId = null; editRows = []; setEditMode(); renderEdit(); await loadStaff();
+      say("Changes saved. Customers see the new names, prices and date now.", true);
+    }catch(e){ if(e.wrongPw) lockAll(); else say("Could not save: " + e.message); }
+    finally{ $("publishRound").disabled = false; }
+    return;
+  }
   try{
     const rid = await rpc("admin_create_round", {p_pw:pw.admin, p_date:date, p_items:items});
     viewRoundId = rid; await loadStaff();
@@ -752,3 +783,5 @@ renderEdit(); showTab();
 setInterval(() => { if(document.hidden) return; if(tab()==="order") loadForm(); else if(isUnlocked(tab())) loadStaff(); }, 20000);
 })();
 </script>
+</body>
+</html>
