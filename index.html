@@ -628,7 +628,7 @@ function renderAdmin(){
       ${lines.map(l=>`<tr><td>${esc(l.name)}</td><td class="n">${qtyText(l.unit,effKg(l))}</td><td class="n">${priceText(l)}</td><td class="n">${peso(lineAmt(l.unit,l.price,effKg(l)))}</td></tr>`).join("")}
       </tbody><tfoot>
         <tr><td colspan="3">Subtotal</td><td class="n">${peso(sub)}</td></tr>
-        <tr><td colspan="3">Delivery fee (shared)</td><td class="n">${peso(share)}</td></tr>
+        <tr><td colspan="3">Delivery fee (${peso(fee)}/${groups.length} customer${groups.length>1?"s":""})</td><td class="n">${peso(share)}</td></tr>
         <tr class="inv-due"><td colspan="3">Total due</td><td class="n">${peso(tot)}</td></tr>
       </tfoot></table>
       <div class="inv-foot"><span class="pill ${paid?"ok":"low"}">${paid?"PAID":"PAYMENT DUE"}</span>${p<n?`<span class="inv-note">Packing ${p}/${n}: amounts may change</span>`:""}</div>
