@@ -673,8 +673,8 @@ function renderPayment(){
         ${qrs.length ? `<div class="qr-grid">${qrs.map(([src, label]) => `<figure><figcaption>${label} QR</figcaption><img class="qr" src="${esc(src)}" alt="${label} QR code"></figure>`).join("")}</div>` : ""}
       </div>` : "";
     const form = (!inv.report || payReportOpen) ? `<div class="panel">
-        <label class="f" for="pf-ref">GCash / bank reference no.<input id="pf-ref" class="name" autocomplete="off" maxlength="60" placeholder="e.g. 1234 567 890123"></label>
-        <label class="f" for="pf-file">Screenshot of payment (optional)<input type="file" id="pf-file" accept="image/*"></label>
+        <label class="f" for="pf-file">Screenshot of your payment<input type="file" id="pf-file" accept="image/*"></label>
+        <p class="hint">Add a screenshot of your GCash or BPI payment, then press "I have paid".</p>
         <div id="pf-err" class="msg err" hidden></div>
         <div class="row"><button type="button" class="primary" id="pfSend">I have paid</button></div>
       </div>` : `<div class="row"><button type="button" class="link" id="pfAgain">Send another payment report</button></div>`;
@@ -691,9 +691,9 @@ $("payView").addEventListener("click", async e => {
   if(e.target.closest("#pfAgain")){ payReportOpen = true; payDone = ""; renderPayment(); return; }
   const btn = e.target.closest("#pfSend"); if(!btn) return;
   const errEl = $("pf-err"), err = t => { errEl.textContent = t; errEl.hidden = !t; };
-  const ref = $("pf-ref").value.trim(), file = $("pf-file").files[0];
+  const ref = "", file = $("pf-file").files[0];
   err("");
-  if(!ref && !file){ err("Enter the reference number or add a screenshot."); return; }
+  if(!file){ err("Please add a screenshot of your payment."); return; }
   btn.disabled = true; btn.textContent = "Sending…";
   try{
     const proof = file ? await shrinkImage(file, 1200, 0.7) : null;
