@@ -681,32 +681,33 @@ function renderPayment(){
   const inv = payInv, info = payPublic?.info || "", qr = payPublic?.qr, qr2 = payPublic?.qr2;
   let side;
   if(inv.paid){
-    side = `<div class="card"><span class="pill ok">Paid ✓</span><p class="hint">Thank you! This invoice is paid.</p></div>`;
+    side = `<div class="card"><h2>Payment</h2><div><span class="pill ok">Paid ✓</span></div><p class="hint">Thank you! This invoice is paid.</p></div>`;
   } else {
     const status = inv.report ? `<span class="pill rep">Payment reported · waiting for confirmation</span>` : `<span class="pill low">Payment due</span>`;
-    const note = inv.report ? `<p class="hint">You reported this payment${inv.report.ref ? ` (ref ${esc(inv.report.ref)})` : ""} on ${dt(inv.report.at)}.</p>` : "";
-    const qrs = [[qr, "GCash"], [qr2, "BPI"]].filter(x => x[0]);
-    const payBox = (info || qrs.length) ? `<div class="pay-how"><h2>How to pay</h2>
-        ${info ? `<div class="pay-info">${esc(info)}</div>` : ""}
-        ${qrs.length ? `<div class="qr-grid">${qrs.map(([src, label]) => `<figure><figcaption>${label} QR</figcaption><img class="qr" src="${esc(src)}" alt="${label} QR code"></figure>`).join("")}</div>` : ""}
-      </div>` : "";
+    const note = inv.report ? `<p class="hint">You sent your proof of payment on ${dt(inv.report.at)}.</p>` : "";
     const form = (!inv.report || payReportOpen) ? `<div class="panel">
-        <div class="f">Screenshot of your payment</div>
+        <p>After paying, upload a screenshot of your GCash or BPI payment here and press <b>I have paid</b>.</p>
+        <div class="f">Proof of payment</div>
         <div class="row file-pick">
           <input type="file" id="pf-file" accept="image/*" class="vh">
           <label for="pf-file" class="btn-like">Choose screenshot</label>
           <span id="pf-name" class="hint">No screenshot chosen</span>
         </div>
-        <p class="hint">Add a screenshot of your GCash or BPI payment, then press "I have paid".</p>
         <div id="pf-err" class="msg err" hidden></div>
-        <div class="row"><button type="button" class="primary" id="pfSend">I have paid</button></div>
-      </div>` : `<div class="row"><button type="button" class="link" id="pfAgain">Send another payment report</button></div>`;
+        <div class="row"><button type="button" class="primary big" id="pfSend">I have paid</button></div>
+      </div>` : `<div class="row"><button type="button" class="link" id="pfAgain">Send another proof of payment</button></div>`;
+    const qrs = [[qr, "GCash"], [qr2, "BPI"]].filter(x => x[0]);
+    const mode = (info || qrs.length) ? `<div class="card">
+        <h2>Mode of payment</h2>
+        ${info ? `<div class="pay-how"><div class="pay-info">${esc(info)}</div></div>` : ""}
+        ${qrs.length ? `<div class="qr-grid">${qrs.map(([src, label]) => `<figure><figcaption>${label} QR</figcaption><img class="qr" src="${esc(src)}" alt="${label} QR code"></figure>`).join("")}</div>` : ""}
+      </div>` : "";
     side = `<div class="card">
+      <h2>Payment</h2>
       ${payDone ? `<div class="msg ok">${esc(payDone)}</div>` : ""}
       <div>${status}</div>${note}
-      ${payBox}
       ${form}
-    </div>`;
+    </div>${mode}`;
   }
   setPay(invoiceHtml(inv) + side);
 }
@@ -726,7 +727,7 @@ $("payView").addEventListener("click", async e => {
   try{
     const proof = file ? await shrinkImage(file, 1200, 0.7) : null;
     payInv = await rpc("customer_report_payment", {p_name: payNm, p_round: payRid, p_ref: ref, p_proof: proof});
-    payReportOpen = false; payDone = "Thank you! Our staff will check your payment and mark it as paid.";
+    payReportOpen = false; payDone = "Thank you! We received your proof of payment. Our staff will check it and mark your invoice as paid.";
     btn.blur(); renderPayment();
   }catch(x){ err(x.message); btn.disabled = false; btn.textContent = "I have paid"; }
 });
