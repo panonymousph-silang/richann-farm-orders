@@ -87,6 +87,20 @@ tr.packed td{background:#d9f0e1}
 .inv-t tr.inv-due td{background:var(--sky-head);font-weight:700;font-size:13px}
 .inv-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .inv-note{font-size:10.5px;color:var(--warn)}
+.inv-pay{font-size:11px;line-height:1.45;white-space:pre-line;border-top:1px dashed var(--line);padding-top:6px}
+.pay-box{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;background:var(--sky);border:1.5px solid var(--line);border-radius:10px;padding:12px}
+.pay-box .pay-text{white-space:pre-line;min-width:0;flex:1 1 200px}
+img.qr{width:180px;max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line);background:#fff}
+img.proof{display:block;max-width:min(100%,360px);height:auto;border-radius:8px;border:1px solid var(--line)}
+.bill{border:1.5px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.bill h3{margin:0;font-size:1rem}
+.pill.rep{color:var(--sky-deep)}
+.dlv h3{margin:0;font-family:var(--font-display);font-size:1.05rem}
+.dlv .pills{display:flex;gap:6px;flex-wrap:wrap}
+.create-box{display:flex;flex-direction:column;gap:10px;background:var(--sky);border:1.5px solid var(--line);border-radius:10px;padding:12px}
+.warn{color:var(--warn);font-size:.85rem;margin:0}
+#payInfo{min-height:72px;font-family:var(--font-body);font-size:.95rem}
+input[type=file]{max-width:100%;font-size:.85rem}
 
 @media (max-width:560px){h1{font-size:1.3rem}nav a{padding:8px 10px}td,th{padding:6px 7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -100,6 +114,7 @@ tr.packed td{background:#d9f0e1}
   </header>
   <nav>
     <a href="#order" data-tab="order">Order</a>
+    <a href="#payment" data-tab="payment">Payment</a>
     <a href="#farmer" data-tab="farmer">Farmer</a>
     <a href="#admin" data-tab="admin">Admin</a>
   </nav>
@@ -126,6 +141,18 @@ tr.packed td{background:#d9f0e1}
       <label class="f" for="myName">Your name<select id="myName"></select></label>
       <div id="myView" class="panel"></div>
     </div>
+  </section>
+
+  <!-- PAYMENT -->
+  <section class="panel" id="p-payment" hidden>
+    <div class="card">
+      <h2>Invoice &amp; payment</h2>
+      <div class="row">
+        <label class="f" for="payRound">Delivery date<select id="payRound"></select></label>
+        <label class="f" for="payName">Your name<select id="payName"></select></label>
+      </div>
+    </div>
+    <div id="payView" class="panel"></div>
   </section>
 
   <!-- LOCK (shared by Farmer and Admin) -->
@@ -168,27 +195,20 @@ tr.packed td{background:#d9f0e1}
 
   <!-- ADMIN -->
   <section class="panel" id="p-admin" hidden>
-    <div class="row">
-      <label class="f" for="adminRound">Delivery<select id="adminRound" class="roundSel"></select></label>
-      <button type="button" id="toggleOpen"></button>
-      <button type="button" id="makeLive" class="primary">Show this form to customers</button>
-      <button type="button" id="editRound">Edit this form</button>
-      <button type="button" id="delRound" class="danger">Delete this form</button>
-      <button type="button" class="link" data-lockout="admin">Lock</button>
+    <div class="cardhead"><h2>Deliveries &amp; billing</h2><button type="button" class="link" data-lockout="admin">Lock</button></div>
+    <div id="deliveries" class="panel"></div>
+
+    <div class="card">
+      <h2>Order forms</h2>
+      <div class="row">
+        <label class="f" for="adminRound">Delivery<select id="adminRound" class="roundSel"></select></label>
+        <button type="button" id="toggleOpen"></button>
+        <button type="button" id="makeLive" class="primary">Show this form to customers</button>
+        <button type="button" id="editRound">Edit this form</button>
+        <button type="button" id="delRound" class="danger">Delete this form</button>
+      </div>
+      <p class="hint" id="liveNote"></p>
     </div>
-    <p class="hint" id="liveNote"></p>
-    <h2>Deliveries &amp; billing</h2>
-    <p class="hint" id="feeNote"></p>
-    <div class="tbl"><table>
-      <thead><tr><th>Customer</th><th class="n">Amount due</th><th>Payment</th><th></th></tr></thead>
-      <tbody id="billBody"></tbody>
-      <tfoot id="billFoot"></tfoot>
-    </table></div>
-    <div id="invHead" class="panel" hidden>
-      <h2>Invoices</h2>
-      <p class="hint">One box per customer. Take one screenshot of a box and send it to that customer.</p>
-    </div>
-    <div id="invoices" class="inv-list"></div>
 
     <div class="card" id="editorCard">
       <div class="cardhead"><h2 id="editTitle">Create a new order form</h2>
@@ -212,6 +232,19 @@ tr.packed td{background:#d9f0e1}
       <div id="editMsg" hidden></div>
     </div>
 
+    <div class="card" id="payCard">
+      <h2>Payment details</h2>
+      <p class="hint">Shown on each customer's invoice on the Payment page.</p>
+      <label class="f" for="payInfo">How to pay<textarea id="payInfo" placeholder="GCash 0917 123 4567 (Juan Dela Cruz)&#10;BDO 0012 3456 7890 (RichAnn Farm)"></textarea></label>
+      <div class="row">
+        <label class="f" for="payQr">GCash QR code (optional)<input type="file" id="payQr" accept="image/*"></label>
+        <img id="payQrPrev" class="qr" alt="QR code customers will see" hidden>
+        <button type="button" id="payQrDel" class="link" hidden>Remove QR</button>
+      </div>
+      <div class="row"><button type="button" class="primary" id="savePay">Save payment details</button></div>
+      <div id="payMsg" hidden></div>
+    </div>
+
     <div class="card" id="pwCard" hidden>
       <h2>Passwords</h2>
       <p class="hint">Leave a field blank to keep its current password.</p>
@@ -233,7 +266,7 @@ const SUPABASE_KEY = "sb_publishable_WP8YJQVJLZqyK_y0DyaRHg_bQQLhUkK";
 (() => {
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const peso = n => "₱" + (Math.round(n*100)/100).toLocaleString("en-PH",{minimumFractionDigits:0,maximumFractionDigits:2});
+const peso = n => { const v = Math.round(n*100)/100; return "₱" + v.toLocaleString("en-PH",{minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits:2}); };
 const r3 = n => Math.round(n*1000)/1000;
 const OPTS_KG = [[2,"2 kg"],[1.5,"1.5 kg"],[1,"1 kg"],[0.75,"3/4 kg"],[0.5,"1/2 kg"],[0.25,"1/4 kg"]];
 const OPTS_G  = [[0.1,"100 g"],[0.2,"200 g"],[0.3,"300 g"],[0.5,"500 g"]];
@@ -257,7 +290,8 @@ function showStatus(t, err){ const s=$("status"); if(!t){s.hidden=true;return;} 
 
 /* ---------- state ---------- */
 let form = {round:null, used:{}};          // customer view
-let rounds = {}, currentId = null, orders = []; // staff view
+let rounds = {}, currentId = null, orders = [], reports = [], invoices = [], payInfo = ""; // staff view
+let payPublic = null; // {info, qr} for customers
 let staffLoaded = false, viewRoundId = null, builtFormFor = undefined;
 
 /* ---------- passwords (kept only for this browser tab) ---------- */
@@ -285,17 +319,18 @@ document.querySelectorAll("[data-lockout]").forEach(b => b.addEventListener("cli
 }));
 
 /* ---------- tabs ---------- */
-function tab(){ const t=(location.hash||"#order").slice(1); return ["order","farmer","admin"].includes(t) ? t : "order"; }
+function tab(){ const t=(location.hash||"#order").slice(1); return ["order","payment","farmer","admin"].includes(t) ? t : "order"; }
 function showTab(){
   const t=tab();
   document.querySelectorAll("nav a").forEach(a=>a.setAttribute("aria-current", a.dataset.tab===t?"page":"false"));
-  const locked = t!=="order" && !isUnlocked(t);
+  const locked = (t==="farmer" || t==="admin") && !isUnlocked(t);
   $("p-order").hidden = t!=="order";
+  $("p-payment").hidden = t!=="payment";
   $("p-farmer").hidden = t!=="farmer" || locked;
   $("p-admin").hidden = t!=="admin" || locked;
   $("p-lock").hidden = !locked;
   if(locked){ $("lockTitle").textContent = t==="admin" ? "Admin access" : "Farmer access"; $("lockErr").hidden=true; setTimeout(()=>$("lockPw").focus(),0); }
-  if(t==="order") loadForm(); else if(!locked) loadStaff();
+  if(t==="order") loadForm(); else if(t==="payment") loadPayList(); else if(!locked) loadStaff();
   renderAll();
 }
 window.addEventListener("hashchange", showTab);
@@ -311,7 +346,7 @@ async function loadStaff(){
   try{
     const d = await rpc("staff_data", {p_pw: staffPw()});
     rounds = {}; (d.rounds||[]).forEach(r => rounds[r.id] = r);
-    currentId = d.current; orders = d.orders || []; staffLoaded = true; showStatus(""); renderAll();
+    currentId = d.current; orders = d.orders || []; reports = d.reports || []; invoices = d.invoices || []; payInfo = d.payInfo || ""; staffLoaded = true; showStatus(""); renderAll();
   }catch(e){ if(e.wrongPw){ lockAll(); } else showStatus("Can't load orders: " + e.message, true); }
 }
 async function act(fn, args){
@@ -334,6 +369,24 @@ function customerGroups(rid){
 }
 const roundFee = rid => +(rounds[rid]?.deliveryFee || 0);
 function feeShare(rid){ const n=customerGroups(rid).length; return n ? Math.round(roundFee(rid)/n*100)/100 : 0; }
+
+/* ---------- images & payment details ---------- */
+async function shrinkImage(file, maxSide, quality){
+  const url = URL.createObjectURL(file);
+  try{
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error("That file can't be opened as an image.")); i.src = url; });
+    const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", quality);
+  } finally { URL.revokeObjectURL(url); }
+}
+async function loadPay(force){
+  if(!configured || (payPublic && !force)) return;
+  try{ payPublic = await rpc("get_pay_info"); }catch{ payPublic = payPublic || {info:"", qr:null}; }
+  myLastHtml = ""; renderAll();
+}
 
 /* ---------- quantity table (used by the order form and "my order" edit) ---------- */
 function mountQty(tbody, items, prefix, getAvail, isOpen, onTotal){
@@ -443,7 +496,7 @@ $("orderForm").addEventListener("submit", async ev => {
 });
 
 /* ---------- CHECK OR CHANGE MY ORDER ---------- */
-let myName = "", my = null, myMode = "view", myEdit = null, myConfirmCancel = false, myFlash = "";
+let myName = "", my = null, myMode = "view", myEdit = null, myConfirmCancel = false, myFlash = "", myLastHtml = "";
 const sameName = (a,b) => String(a||"").trim().toLowerCase() === String(b||"").trim().toLowerCase();
 function fillMyNames(){
   const s = $("myName"), names = form.names || [];
@@ -462,27 +515,34 @@ async function loadMy(){
   renderMy();
 }
 function myMine(){ const m = {}; for(const l of my?.lines||[]) m[l.itemId] = +l.qtyKg; return m; }
+function setMy(html){ if(html === myLastHtml) return false; myLastHtml = html; $("myView").innerHTML = html; return true; }
 function renderMy(){
   fillMyNames();
-  const v = $("myView");
-  if(!myName){ v.innerHTML = myFlash ? `<div class="msg ok">${esc(myFlash)}</div>` : `<p class="hint">Pick your name to see what you ordered.</p>`; return; }
-  if(!my){ v.innerHTML = `<p class="hint">Loading…</p>`; return; }
-  if(my.error){ v.innerHTML = `<div class="msg err">${esc(my.error)}</div>`; return; }
-  if(!my.lines?.length){ v.innerHTML = `<p class="hint">No order found for this name.</p>`; return; }
+  if(!myName){ setMy(myFlash ? `<div class="msg ok">${esc(myFlash)}</div>` : `<p class="hint">Pick your name to see what you ordered.</p>`); return; }
+  if(!my){ setMy(`<p class="hint">Loading…</p>`); return; }
+  if(my.error){ setMy(`<div class="msg err">${esc(my.error)}</div>`); return; }
   if(myMode === "edit") return; // the edit table is already on screen
-  let tot = 0;
-  const rows = my.lines.map(l => { const kg = l.packed ? +l.actualKg : +l.qtyKg; const a = lineAmt(l.unit,l.price,kg); tot += a;
-    return `<tr><td>${esc(l.name)}</td><td class="n">${qtyText(l.unit,kg)}</td><td class="n">${priceText(l)}</td><td class="n">${peso(a)}</td></tr>`; }).join("");
-  const canEdit = !my.locked && form.round?.open;
-  v.innerHTML = `<div class="msg ok"><b>We have your order, ${esc(my.customer)}.</b></div>
-    <div class="tbl"><table><thead><tr><th>Vegetable</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Subtotal</th></tr></thead>
-    <tbody>${rows}</tbody><tfoot><tr><td colspan="3">Total (delivery fee not included)</td><td class="n">${peso(tot)}</td></tr></tfoot></table></div>
-    ${canEdit ? `<div class="row"><button type="button" class="primary" id="myEditBtn">Change my order</button>
-      <button type="button" class="danger" id="myCancelBtn">${myConfirmCancel ? "Confirm: cancel my whole order" : "Cancel my order"}</button></div>`
-      : `<p class="hint">${my.locked ? "The farm has started packing your order, so it can't be changed here. Please message the farm." : "Orders are closed, so changes aren't possible here."}</p>`}
-    <div id="myMsg" hidden></div>`;
+  const a = document.activeElement;
+  if(a && $("myView").contains(a) && (a.tagName === "INPUT")) return; // don't wipe what the customer is typing
+  const hasLines = !!my.lines?.length;
+  if(!hasLines){ setMy(`<p class="hint">No order found for this name.</p>`); return; }
+  let orderPart = "";
+  const canEdit = hasLines && !my.locked && form.round?.open;
+  if(hasLines){
+    let tot = 0;
+    const rows = my.lines.map(l => { const kg = l.packed ? +l.actualKg : +l.qtyKg; const amt = lineAmt(l.unit,l.price,kg); tot += amt;
+      return `<tr><td>${esc(l.name)}</td><td class="n">${qtyText(l.unit,kg)}</td><td class="n">${priceText(l)}</td><td class="n">${peso(amt)}</td></tr>`; }).join("");
+    orderPart = `<div class="msg ok"><b>We have your order, ${esc(my.customer)}.</b></div>
+      <div class="tbl"><table><thead><tr><th>Vegetable</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Subtotal</th></tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><td colspan="3">Total (delivery fee not included)</td><td class="n">${peso(tot)}</td></tr></tfoot></table></div>
+      ${canEdit ? `<div class="row"><button type="button" class="primary" id="myEditBtn">Change my order</button>
+        <button type="button" class="danger" id="myCancelBtn">${myConfirmCancel ? "Confirm: cancel my whole order" : "Cancel my order"}</button></div>`
+        : `<p class="hint">${my.locked ? "The farm has started packing your order, so it can't be changed here. Please message the farm." : "Orders are closed, so changes aren't possible here."}</p>`}
+      <div id="myMsg" hidden></div>`;
+  }
+  if(!setMy(orderPart)) return;
   if(canEdit){
-    $("myEditBtn").onclick = startEdit;
+    $("myEditBtn").onclick = () => { myLastHtml = ""; startEdit(); };
     $("myCancelBtn").onclick = async () => {
       if(!myConfirmCancel){ myConfirmCancel = true; renderMy(); return; }
       myConfirmCancel = false; await saveMy([]);
@@ -501,7 +561,7 @@ function startEdit(){
   for(const [id,kg] of Object.entries(mine)) myEdit.set(id, kg);
   myEdit.refresh();
   const err = t => { const e=$("myErr"); e.textContent=t; e.hidden=!t; };
-  $("myBack").onclick = () => { myMode = "view"; renderMy(); };
+  $("myBack").onclick = () => { myMode = "view"; myLastHtml = ""; renderMy(); };
   $("mySave").onclick = async () => {
     err("");
     const lines = myEdit.lines(err); if(!lines) return;
@@ -516,10 +576,109 @@ async function saveMy(lines, err){
     if(res?.cancelled){ myName = ""; my = null; myFlash = "Your order was cancelled.";
       if(!$("orderDone").hidden){ $("orderDone").hidden = true; $("orderForm").hidden = false; $("custName").value = ""; builtFormFor = undefined; }
       await loadForm(); return; }
-    await loadForm(); await loadMy();
+    myLastHtml = ""; await loadForm(); await loadMy();
     const m = $("myMsg"); if(m){ m.className = "msg ok"; m.textContent = "Your changes are saved."; m.hidden = false; }
   }catch(e){ if(err) err(e.message); else { await loadMy(); const m=$("myMsg"); if(m){ m.className="msg err"; m.textContent=e.message; m.hidden=false; } } }
 }
+
+/* ---------- PAYMENT ---------- */
+let payList = null, payRid = "", payNm = "", payInv = null, payLastHtml = "", payReportOpen = false, payDone = "";
+const dt = t => new Date(t).toLocaleString("en-PH",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+async function loadPayList(){
+  if(!configured) return;
+  try{ payList = await rpc("pay_list"); showStatus(""); }
+  catch(e){ showStatus("Can't load invoices: " + e.message, true); return; }
+  loadPay(); renderPayment();
+}
+async function loadPayInv(){
+  if(!payRid || !payNm) return;
+  try{ payInv = (await rpc("pay_invoice", {p_round: payRid, p_name: payNm})) || {missing: true}; }
+  catch(e){ payInv = {error: e.message}; }
+  renderPayment();
+}
+function fillPaySelects(){
+  const rs = $("payRound"), ns = $("payName"), list = payList || [];
+  if(payRid && payList && !list.some(d => d.id === payRid)){ payRid = ""; payNm = ""; payInv = null; }
+  const d = list.find(x => x.id === payRid), names = d?.names || [];
+  if(payNm && d && !names.some(n => sameName(n, payNm))){ payNm = ""; payInv = null; }
+  if(document.activeElement !== rs){
+    rs.innerHTML = `<option value="">${payList == null ? "Loading…" : list.length ? "Choose a date" : "No invoices yet"}</option>`
+      + list.map(x => `<option value="${esc(x.id)}">${esc(fmtDate(x.date))}</option>`).join("");
+    rs.value = payRid;
+  }
+  if(document.activeElement !== ns){
+    ns.innerHTML = `<option value="">${d ? "Choose your name" : "Choose a date first"}</option>`
+      + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    ns.value = names.find(n => sameName(n, payNm)) || "";
+    ns.disabled = !d;
+  }
+}
+$("payRound").addEventListener("change", () => { payRid = $("payRound").value; payNm = ""; payInv = null; payReportOpen = false; payDone = ""; renderPayment(); });
+$("payName").addEventListener("change", () => { payNm = $("payName").value; payInv = null; payReportOpen = false; payDone = ""; renderPayment(); loadPayInv(); });
+function setPay(html){ if(html === payLastHtml) return; payLastHtml = html; $("payView").innerHTML = html; }
+function invoiceHtml(inv){
+  const n = +inv.customers, info = payPublic?.info || "";
+  return `<article class="inv">
+    <div class="inv-top"><div><div class="inv-farm">RichAnn Vegetable Farm</div><div class="inv-to">Bill to <b>${esc(inv.customer)}</b></div></div>
+      <div class="inv-right"><div class="inv-word">INVOICE</div><div>Delivery ${esc(fmtDate(inv.date))}</div></div></div>
+    <table class="inv-t"><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead><tbody>
+    ${(inv.lines || []).map(l => `<tr><td>${esc(l.name)}</td><td class="n">${qtyText(l.unit, +l.qty)}</td><td class="n">${priceText(l)}</td><td class="n">${peso(+l.amount)}</td></tr>`).join("")}
+    </tbody><tfoot>
+      <tr><td colspan="3">Subtotal</td><td class="n">${peso(+inv.subtotal)}</td></tr>
+      <tr><td colspan="3">Delivery fee (${peso(+inv.fee)}/${n} customer${n > 1 ? "s" : ""})</td><td class="n">${peso(+inv.share)}</td></tr>
+      <tr class="inv-due"><td colspan="3">Total due</td><td class="n">${peso(+inv.total)}</td></tr>
+    </tfoot></table>
+    <div class="inv-foot"><span class="pill ${inv.paid ? "ok" : "low"}">${inv.paid ? "PAID" : "PAYMENT DUE"}</span></div>
+    ${!inv.paid && info ? `<div class="inv-pay"><b>How to pay</b>\n${esc(info)}</div>` : ""}
+  </article>`;
+}
+function renderPayment(){
+  fillPaySelects();
+  const a = document.activeElement;
+  if(a && $("payView").contains(a) && a.tagName === "INPUT") return; // keep what the customer is typing
+  if(!payRid){ setPay(`<p class="hint">Choose the delivery date, then your name, to see your invoice.</p>`); return; }
+  if(!payNm){ setPay(`<p class="hint">Now choose your name.</p>`); return; }
+  if(!payInv){ setPay(`<p class="hint">Loading…</p>`); return; }
+  if(payInv.error){ setPay(`<div class="msg err">${esc(payInv.error)}</div>`); return; }
+  if(payInv.missing){ setPay(`<p class="hint">No invoice found for this name.</p>`); return; }
+  const inv = payInv, info = payPublic?.info || "", qr = payPublic?.qr;
+  let side;
+  if(inv.paid){
+    side = `<div class="card"><span class="pill ok">Paid ✓</span><p class="hint">Thank you! This invoice is paid.</p></div>`;
+  } else {
+    const status = inv.report ? `<span class="pill rep">Payment reported · waiting for the farm to confirm</span>` : `<span class="pill low">Payment due</span>`;
+    const note = inv.report ? `<p class="hint">You reported this payment${inv.report.ref ? ` (ref ${esc(inv.report.ref)})` : ""} on ${dt(inv.report.at)}.</p>` : "";
+    const payBox = qr ? `<div class="pay-box"><div class="pay-text"><b>Scan to pay with GCash</b></div><img class="qr" src="${esc(qr)}" alt="GCash QR code"></div>` : "";
+    const form = (!inv.report || payReportOpen) ? `<div class="panel">
+        <label class="f" for="pf-ref">GCash / bank reference no.<input id="pf-ref" class="name" autocomplete="off" maxlength="60" placeholder="e.g. 1234 567 890123"></label>
+        <label class="f" for="pf-file">Screenshot of payment (optional)<input type="file" id="pf-file" accept="image/*"></label>
+        <div id="pf-err" class="msg err" hidden></div>
+        <div class="row"><button type="button" class="primary" id="pfSend">I have paid</button></div>
+      </div>` : `<div class="row"><button type="button" class="link" id="pfAgain">Send another payment report</button></div>`;
+    side = `<div class="card">
+      ${payDone ? `<div class="msg ok">${esc(payDone)}</div>` : ""}
+      <div>${status}</div>${note}
+      ${payBox}
+      ${form}
+    </div>`;
+  }
+  setPay(invoiceHtml(inv) + side);
+}
+$("payView").addEventListener("click", async e => {
+  if(e.target.closest("#pfAgain")){ payReportOpen = true; payDone = ""; renderPayment(); return; }
+  const btn = e.target.closest("#pfSend"); if(!btn) return;
+  const errEl = $("pf-err"), err = t => { errEl.textContent = t; errEl.hidden = !t; };
+  const ref = $("pf-ref").value.trim(), file = $("pf-file").files[0];
+  err("");
+  if(!ref && !file){ err("Enter the reference number or add a screenshot."); return; }
+  btn.disabled = true; btn.textContent = "Sending…";
+  try{
+    const proof = file ? await shrinkImage(file, 1200, 0.7) : null;
+    payInv = await rpc("customer_report_payment", {p_name: payNm, p_round: payRid, p_ref: ref, p_proof: proof});
+    payReportOpen = false; payDone = "Thank you! The farm will check your payment and mark it as paid.";
+    btn.blur(); renderPayment();
+  }catch(x){ err(x.message); btn.disabled = false; btn.textContent = "I have paid"; }
+});
 
 /* ---------- FARMER ---------- */
 function fillRoundSelects(){
@@ -597,61 +756,164 @@ $("farmFee").addEventListener("change", () => {
 });
 
 /* ---------- ADMIN ---------- */
-let confirmDel = null;
+let confirmKey = null, proofs = {}, proofOpen = {}, payDirty = false, payQrNew = null, splitVal = {};
+function latestReport(rid, key){ let r = null; for(const x of reports) if(x.roundId === rid && custKey(x) === key && (!r || x.at > r.at)) r = x; return r; }
+function renderPayCard(){
+  if(!payDirty && document.activeElement !== $("payInfo")) $("payInfo").value = payInfo;
+  const qr = payQrNew === "" ? null : (payQrNew || payPublic?.qr);
+  $("payQrPrev").hidden = !qr; if(qr) $("payQrPrev").src = qr;
+  $("payQrDel").hidden = !qr;
+}
+$("payInfo").addEventListener("input", () => { payDirty = true; });
+$("payQr").addEventListener("change", async () => {
+  const f = $("payQr").files[0]; if(!f) return;
+  try{ payQrNew = await shrinkImage(f, 700, 0.9); payDirty = true; renderPayCard(); }
+  catch(e){ const m=$("payMsg"); m.className="msg err"; m.textContent=e.message; m.hidden=false; }
+});
+$("payQrDel").addEventListener("click", () => { payQrNew = ""; $("payQr").value = ""; payDirty = true; renderPayCard(); });
+$("savePay").addEventListener("click", async () => {
+  const m=$("payMsg"), say=(t,ok)=>{m.textContent=t;m.className="msg "+(ok?"ok":"err");m.hidden=false;};
+  $("savePay").disabled = true;
+  try{
+    await rpc("admin_set_pay_info", {p_pw:pw.admin, p_info:$("payInfo").value.trim(), p_qr:payQrNew});
+    payDirty = false; payQrNew = null; $("payQr").value = "";
+    await loadPay(true); await loadStaff(); say("Payment details saved.", true);
+  }catch(e){ if(e.wrongPw) lockAll(); else say("Could not save: " + e.message); }
+  finally{ $("savePay").disabled = false; }
+});
 function renderAdmin(){
   const r = rounds[viewRoundId];
   const tb = $("toggleOpen");
-  tb.hidden = !r;
+  tb.hidden = !r || (!r.open && !!r.invoicedAt);
   if(r){ tb.textContent = r.open ? "Close orders" : "Reopen orders"; tb.className = r.open ? "" : "primary"; }
   $("makeLive").hidden = !r || viewRoundId === currentId;
   $("delRound").hidden = !r; $("editRound").hidden = !r;
   const nOrd = roundOrders(viewRoundId).length;
   $("delRound").textContent = confirmRoundDel === viewRoundId
-    ? (nOrd ? `Confirm: delete form and its ${nOrd} order${nOrd>1?"s":""}` : "Confirm delete")
+    ? (nOrd ? `Confirm: delete form, its ${nOrd} order${nOrd>1?"s":""} and invoices` : "Confirm delete")
     : "Delete this form";
   $("liveNote").textContent = !r ? "" : viewRoundId === currentId
     ? "Customers see this form now."
     : "Customers do not see this form. Press \"Show this form to customers\" to switch.";
   $("pwCard").hidden = false;
-  const groups = customerGroups(viewRoundId), share = feeShare(viewRoundId), fee = roundFee(viewRoundId);
-  $("feeNote").textContent = groups.length ? `Delivery fee from farmer ${peso(fee)} ÷ ${groups.length} customer${groups.length>1?"s":""} = ${peso(share)} each.` : "";
-  let T=0,U=0; const inv=[];
-  $("billBody").innerHTML = groups.length ? groups.map(g => {
-    const sub=g.orders.reduce((x,o)=>x+orderSub(o),0), tot=sub+share, paid=g.orders.every(o=>o.paid);
-    T+=tot; if(!paid) U+=tot;
-    const lines=g.orders.flatMap(o=>o.lines||[]), n=lines.length, p=lines.filter(l=>l.packed).length;
-    const k=esc(g.key);
-    inv.push(`<article class="inv">
-      <div class="inv-top"><div><div class="inv-farm">RichAnn Vegetable Farm</div><div class="inv-to">Bill to <b>${esc(g.name)}</b></div></div>
-        <div class="inv-right"><div class="inv-word">INVOICE</div><div>Delivery ${esc(fmtDate(r.date))}</div></div></div>
-      <table class="inv-t"><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead><tbody>
-      ${lines.map(l=>`<tr><td>${esc(l.name)}</td><td class="n">${qtyText(l.unit,effKg(l))}</td><td class="n">${priceText(l)}</td><td class="n">${peso(lineAmt(l.unit,l.price,effKg(l)))}</td></tr>`).join("")}
-      </tbody><tfoot>
-        <tr><td colspan="3">Subtotal</td><td class="n">${peso(sub)}</td></tr>
-        <tr><td colspan="3">Delivery fee (${peso(fee)}/${groups.length} customer${groups.length>1?"s":""})</td><td class="n">${peso(share)}</td></tr>
-        <tr class="inv-due"><td colspan="3">Total due</td><td class="n">${peso(tot)}</td></tr>
-      </tfoot></table>
-      <div class="inv-foot"><span class="pill ${paid?"ok":"low"}">${paid?"PAID":"PAYMENT DUE"}</span>${p<n?`<span class="inv-note">Packing ${p}/${n}: amounts may change</span>`:""}</div>
-    </article>`);
-    return `<tr><td><div class="cust">${esc(g.name)}</div><div class="detail">${p===n?"Packed":`Packing ${p}/${n}`}${g.orders.length>1?` · ${g.orders.length} orders`:""}</div></td>
-      <td class="n"><b>${peso(tot)}</b></td>
-      <td><button type="button" class="${paid?"done":""}" data-paid="${k}">${paid?"✓ Paid":"Mark paid"}</button></td>
-      <td><button type="button" class="danger" data-del="${k}" aria-label="Delete ${esc(g.name)}'s order">${confirmDel===g.key?"Delete?":"✕"}</button></td></tr>`;
-  }).join("") : `<tr><td colspan="4" class="empty">${staffLoaded?"No orders for this delivery yet.":"Loading…"}</td></tr>`;
-  $("billFoot").innerHTML = groups.length ? `<tr><td>Total · ${groups.length} customers</td><td class="n">${peso(T)}</td><td colspan="2">Unpaid ${peso(U)}</td></tr>` : "";
-  $("invoices").innerHTML = inv.join("");
-  $("invHead").hidden = !inv.length;
+  if(!payPublic) loadPay();
+  renderPayCard();
+  renderDeliveries();
 }
-$("billBody").addEventListener("click", e => {
-  const p = e.target.closest("button[data-paid]");
-  if(p){ const g=customerGroups(viewRoundId).find(x=>x.key===p.dataset.paid); if(!g) return;
-    const v=!g.orders.every(o=>o.paid); g.orders.forEach(o=>o.paid=v); renderAll();
-    act("admin_set_paid", {p_ids:g.orders.map(o=>o.id), p_paid:v}); return; }
-  const d = e.target.closest("button[data-del]");
-  if(d){ const k=d.dataset.del; if(confirmDel!==k){ confirmDel=k; renderAdmin(); return; }
-    confirmDel=null; const g=customerGroups(viewRoundId).find(x=>x.key===k); if(!g) return;
-    const ids=g.orders.map(o=>o.id); orders=orders.filter(x=>!ids.includes(x.id)); renderAll();
-    act("admin_delete_orders", {p_ids:ids}); }
+function reportLine(rid, key, name){
+  const rp = latestReport(rid, key); if(!rp) return {line:"", row:""};
+  const open = proofOpen[rp.id] && proofs[rp.id];
+  return {
+    line: `<div class="detail"><span class="pill rep">Payment reported</span> ${rp.ref ? `Ref ${esc(rp.ref)} · ` : ""}${dt(rp.at)}
+      ${rp.hasProof ? `<button type="button" class="link" data-proof="${esc(rp.id)}">${open ? "Hide screenshot" : "View screenshot"}</button>` : ""}</div>`,
+    row: open ? `<tr><td colspan="4"><img class="proof" src="${esc(proofs[rp.id])}" alt="Payment screenshot from ${esc(name)}"></td></tr>` : ""
+  };
+}
+function deliveryHtml(rid){
+  const r = rounds[rid];
+  const invs = invoices.filter(i => i.roundId === rid);
+  const title = `<h3>${esc(fmtDate(r.date))} delivery</h3>`;
+  if(r.invoicedAt && invs.length){
+    let T = 0, U = 0, P = 0;
+    const rows = invs.map(i => {
+      T += +i.total; if(i.paid) P++; else U += +i.total;
+      const rp = i.paid ? {line:"", row:""} : reportLine(rid, i.key, i.customer);
+      const k = "inv:" + i.id;
+      return `<tr><td><div class="cust">${esc(i.customer)}</div>${rp.line}</td>
+        <td class="n"><b>${peso(+i.total)}</b></td>
+        <td><button type="button" class="${i.paid ? "done" : ""}" data-inv-paid="${esc(i.id)}">${i.paid ? "✓ Paid" : "Mark paid"}</button></td>
+        <td><button type="button" class="danger" data-inv-del="${esc(i.id)}" aria-label="Delete ${esc(i.customer)}'s invoice">${confirmKey === k ? "Delete?" : "✕"}</button></td></tr>${rp.row}`;
+    }).join("");
+    const f = invs[0], n = +f.customers;
+    const allPaid = P === invs.length;
+    return `<div class="card dlv">
+      <div class="cardhead">${title}<div class="pills">${allPaid ? `<span class="pill ok">All paid</span>` : `<span class="pill low">Unpaid ${peso(U)}</span>`}</div></div>
+      <p class="hint">Delivery fee ${peso(+f.fee)} ÷ ${n} customer${n>1?"s":""} = ${peso(+f.share)} each · invoices created ${esc(dt(r.invoicedAt))}</p>
+      <div class="tbl"><table><thead><tr><th>Customer</th><th class="n">Total due</th><th>Payment</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td>${invs.length} invoice${invs.length>1?"s":""} · ${P} paid</td><td class="n">${peso(T)}</td><td colspan="2">Unpaid ${peso(U)}</td></tr></tfoot></table></div>
+      ${P === 0 ? `<div class="row"><button type="button" class="link" data-redo="${esc(rid)}">${confirmKey === "redo:" + rid ? "Confirm: delete these invoices so you can create them again" : "Redo invoices"}</button></div>` : ""}
+    </div>`;
+  }
+  const groups = customerGroups(rid);
+  const state = r.open ? `<span class="pill wait">Taking orders</span>` : `<span class="pill wait">No invoices yet</span>`;
+  if(!groups.length) return `<div class="card dlv"><div class="cardhead">${title}<div class="pills">${state}</div></div><p class="hint">No orders yet.</p></div>`;
+  let V = 0, nL = 0, nP = 0;
+  const rows = groups.map(g => {
+    const sub = g.orders.reduce((x,o) => x + orderSub(o), 0); V += sub;
+    const lines = g.orders.flatMap(o => o.lines || []), n = lines.length, p = lines.filter(l => l.packed).length; nL += n; nP += p;
+    const k = "ord:" + rid + "|" + g.key;
+    return `<tr><td><div class="cust">${esc(g.name)}</div></td>
+      <td>${p === n ? `<span class="pill ok">Packed</span>` : `${p}/${n}`}</td>
+      <td class="n">${peso(sub)}</td>
+      <td><button type="button" class="danger" data-ord-del="${esc(rid + "|" + g.key)}" aria-label="Delete ${esc(g.name)}'s order">${confirmKey === k ? "Delete?" : "✕"}</button></td></tr>`;
+  }).join("");
+  const fee = roundFee(rid), split = splitVal[rid] ?? groups.length, share = split > 0 ? Math.round(fee / split * 100) / 100 : 0;
+  const warns = [];
+  if(!fee) warns.push("The farmer hasn't entered the delivery fee yet.");
+  if(nP < nL) warns.push(`Packing isn't finished (${nP}/${nL} items). Unpacked items use the ordered quantity.`);
+  if(r.open) warns.push("Orders are still open. Creating invoices closes this order form.");
+  const ck = "create:" + rid;
+  return `<div class="card dlv">
+    <div class="cardhead">${title}<div class="pills">${state}</div></div>
+    <div class="tbl"><table><thead><tr><th>Customer</th><th>Packing</th><th class="n">Vegetables</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="2">${groups.length} customer${groups.length>1?"s":""}</td><td class="n">${peso(V)}</td><td></td></tr></tfoot></table></div>
+    <div class="create-box">
+      <div class="row">
+        <span>Delivery fee from farmer: <b>${peso(fee)}</b></span>
+        <label class="f" for="split-${esc(rid)}">Split between<input type="number" class="num" id="split-${esc(rid)}" data-split="${esc(rid)}" min="1" step="1" value="${split}"></label>
+        <span id="share-${esc(rid)}">= ${peso(share)} each</span>
+      </div>
+      ${warns.map(w => `<p class="warn">${esc(w)}</p>`).join("")}
+      <p class="hint">After you create invoices, the delivery fee and the split are fixed. Customers see their invoice on the Payment page.</p>
+      <div><button type="button" class="primary" data-create="${esc(rid)}">${confirmKey === ck ? `Confirm: create ${groups.length} invoice${groups.length>1?"s":""}` : "Create invoices"}</button></div>
+    </div>
+  </div>`;
+}
+function renderDeliveries(){
+  const ids = Object.keys(rounds).sort((a,b)=>(rounds[b].date||b).localeCompare(rounds[a].date||a) || b.localeCompare(a));
+  $("deliveries").innerHTML = ids.length ? ids.map(deliveryHtml).join("") : `<p class="hint">${staffLoaded ? "No deliveries yet. Create an order form below." : "Loading…"}</p>`;
+}
+$("deliveries").addEventListener("input", e => {
+  const inp = e.target.closest("[data-split]"); if(!inp) return;
+  const rid = inp.dataset.split, v = parseInt(inp.value, 10);
+  splitVal[rid] = v > 0 ? v : "";
+  const fee = roundFee(rid), el = $("share-" + rid);
+  if(el) el.textContent = v > 0 ? `= ${peso(Math.round(fee / v * 100) / 100)} each` : "";
+});
+$("deliveries").addEventListener("click", async e => {
+  const pr = e.target.closest("button[data-proof]");
+  if(pr){ const id = pr.dataset.proof;
+    if(proofOpen[id]){ proofOpen[id] = false; renderAdmin(); return; }
+    proofOpen[id] = true;
+    if(!proofs[id]){ pr.textContent = "Loading…";
+      try{ proofs[id] = await rpc("admin_get_proof", {p_pw: pw.admin, p_id: id}); }
+      catch(x){ proofOpen[id] = false; if(x.wrongPw) return lockAll(); showStatus("Could not load the screenshot: " + x.message, true); } }
+    renderAdmin(); return; }
+  const ip = e.target.closest("button[data-inv-paid]");
+  if(ip){ const i = invoices.find(x => x.id === ip.dataset.invPaid); if(!i) return;
+    i.paid = !i.paid; renderAdmin(); act("admin_set_invoice_paid", {p_ids: [i.id], p_paid: i.paid}); return; }
+  const confirmThen = (key, fn) => { if(confirmKey !== key){ confirmKey = key; renderAdmin(); return; } confirmKey = null; fn(); };
+  const idl = e.target.closest("button[data-inv-del]");
+  if(idl){ const id = idl.dataset.invDel;
+    return confirmThen("inv:" + id, () => { invoices = invoices.filter(x => x.id !== id); renderAdmin(); act("admin_delete_invoice", {p_id: id}); }); }
+  const od = e.target.closest("button[data-ord-del]");
+  if(od){ const [rid, key] = [od.dataset.ordDel.slice(0, od.dataset.ordDel.indexOf("|")), od.dataset.ordDel.slice(od.dataset.ordDel.indexOf("|") + 1)];
+    return confirmThen("ord:" + rid + "|" + key, () => {
+      const g = customerGroups(rid).find(x => x.key === key); if(!g) return;
+      const ids = g.orders.map(o => o.id); orders = orders.filter(x => !ids.includes(x.id)); renderAll();
+      act("admin_delete_orders", {p_ids: ids}); }); }
+  const cr = e.target.closest("button[data-create]");
+  if(cr){ const rid = cr.dataset.create;
+    const split = parseInt($("split-" + rid)?.value, 10);
+    if(!(split > 0)){ showStatus("Enter how many customers share the delivery fee.", true); return; }
+    return confirmThen("create:" + rid, async () => {
+      cr.disabled = true; cr.textContent = "Creating…";
+      await act("admin_create_invoices", {p_round: rid, p_split: split}); delete splitVal[rid]; }); }
+  const rd = e.target.closest("button[data-redo]");
+  if(rd){ const rid = rd.dataset.redo;
+    return confirmThen("redo:" + rid, () => act("admin_delete_invoices", {p_round: rid})); }
 });
 let confirmRoundDel = null;
 $("makeLive").addEventListener("click", async () => {
@@ -767,11 +1029,12 @@ $("savePw").onclick = async () => {
 function renderAll(){
   const t = tab(), a = document.activeElement;
   const r = t==="order" ? form.round : rounds[currentId];
-  $("roundLabel").textContent = !configured ? "Setup needed" : r ? `Delivery ${fmtDate(r.date)} · ${r.open?"Taking orders":"Orders closed"}` : "No order form yet";
+  $("roundLabel").textContent = !configured ? "Setup needed" : t==="payment" ? "Invoices & payment" : r ? `Delivery ${fmtDate(r.date)} · ${r.open?"Taking orders":"Orders closed"}` : "No order form yet";
+  if(t==="payment"){ renderPayment(); return; }
   if(t==="order"){ if(builtFormFor !== (form.round ? form.round.id : null)) buildOrderForm(); else updateOrderForm(); return; }
   fillRoundSelects();
   if(t==="farmer" && isUnlocked("farmer") && !(a && $("farmOrders").contains(a) && a.tagName==="INPUT")) renderFarmer();
-  if(t==="admin" && isUnlocked("admin") && !(a && $("billBody").contains(a) && a.tagName==="INPUT")) renderAdmin();
+  if(t==="admin" && isUnlocked("admin") && !(a && $("deliveries").contains(a) && a.tagName==="INPUT")) renderAdmin();
 }
 document.addEventListener("focusout", () => setTimeout(renderAll, 0));
 
@@ -780,7 +1043,7 @@ if(!configured){
 }
 renderEdit(); showTab();
 // refresh every 20 seconds so stock and orders stay current
-setInterval(() => { if(document.hidden) return; if(tab()==="order") loadForm(); else if(isUnlocked(tab())) loadStaff(); }, 20000);
+setInterval(() => { if(document.hidden) return; if(tab()==="order"){ loadForm(); if(myName && myMode==="view") loadMy(); } else if(tab()==="payment"){ loadPayList(); loadPayInv(); } else if(isUnlocked(tab())) loadStaff(); }, 20000);
 })();
 </script>
 </body>
