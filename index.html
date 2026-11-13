@@ -96,9 +96,23 @@ img.proof{display:block;max-width:min(100%,360px);height:auto;border-radius:8px;
 .bill h3{margin:0;font-size:1rem}
 .pill.rep{color:var(--sky-deep)}
 .dlv h3{margin:0;font-family:var(--font-display);font-size:1.05rem}
+.dlv td button:not(.link){padding:4px 9px;font-size:.82rem;white-space:nowrap}
+.dlv th,.dlv td{padding:6px 7px}
+.dlv tr.rep-row td{border-top:none;padding-top:0}
 .dlv .pills{display:flex;gap:6px;flex-wrap:wrap}
 .create-box{display:flex;flex-direction:column;gap:10px;background:var(--sky);border:1.5px solid var(--line);border-radius:10px;padding:12px}
 .warn{color:var(--warn);font-size:.85rem;margin:0}
+.banner{border:2px solid var(--line);background:var(--sky);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.banner .b-date{font-family:var(--font-display);font-size:1.45rem;font-weight:700;line-height:1.3;text-wrap:balance}
+.banner .b-state{font-size:1.15rem;font-weight:700}
+.banner .b-state.open{color:var(--leaf)}
+.banner .b-state.closed{color:var(--warn)}
+.pay-how{background:var(--sky);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.pay-how .pay-info{white-space:pre-line;font-size:1rem;line-height:1.6}
+.qr-grid{display:flex;flex-wrap:wrap;gap:14px}
+.qr-grid figure{margin:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.qr-grid figcaption{font-weight:700;font-size:.9rem}
+.farm-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px dashed var(--line);padding-top:10px}
 #payInfo{min-height:72px;font-family:var(--font-body);font-size:.95rem}
 input[type=file]{max-width:100%;font-size:.85rem}
 
@@ -122,6 +136,7 @@ input[type=file]{max-width:100%;font-size:.85rem}
 
   <!-- ORDER -->
   <section class="panel" id="p-order">
+    <div class="banner" id="orderBanner" hidden><div class="b-date" id="bannerDate"></div><div class="b-state" id="bannerState"></div></div>
     <div id="orderDone" class="panel" hidden></div>
     <form id="orderForm" class="panel" novalidate>
       <label class="f" for="custName">Your name
@@ -169,7 +184,7 @@ input[type=file]{max-width:100%;font-size:.85rem}
   <!-- FARMER -->
   <section class="panel" id="p-farmer" hidden>
     <div class="row">
-      <label class="f" for="farmRound">Delivery<select id="farmRound" class="roundSel"></select></label>
+      <label class="f" for="farmRound">Delivery<select id="farmRound"></select></label>
       <p class="sub" id="farmProgress"></p>
       <button type="button" class="link" data-lockout="farmer">Lock</button>
     </div>
@@ -234,12 +249,17 @@ input[type=file]{max-width:100%;font-size:.85rem}
 
     <div class="card" id="payCard">
       <h2>Payment details</h2>
-      <p class="hint">Shown on each customer's invoice on the Payment page.</p>
+      <p class="hint">Shown under each customer's invoice on the Payment page.</p>
       <label class="f" for="payInfo">How to pay<textarea id="payInfo" placeholder="GCash 0917 123 4567 (Juan Dela Cruz)&#10;BDO 0012 3456 7890 (RichAnn Farm)"></textarea></label>
       <div class="row">
         <label class="f" for="payQr">GCash QR code (optional)<input type="file" id="payQr" accept="image/*"></label>
         <img id="payQrPrev" class="qr" alt="QR code customers will see" hidden>
         <button type="button" id="payQrDel" class="link" hidden>Remove QR</button>
+      </div>
+      <div class="row">
+        <label class="f" for="payQr2">BPI QR code (optional)<input type="file" id="payQr2" accept="image/*"></label>
+        <img id="payQr2Prev" class="qr" alt="BPI QR code customers will see" hidden>
+        <button type="button" id="payQr2Del" class="link" hidden>Remove QR</button>
       </div>
       <div class="row"><button type="button" class="primary" id="savePay">Save payment details</button></div>
       <div id="payMsg" hidden></div>
@@ -292,7 +312,7 @@ function showStatus(t, err){ const s=$("status"); if(!t){s.hidden=true;return;} 
 let form = {round:null, used:{}};          // customer view
 let rounds = {}, currentId = null, orders = [], reports = [], invoices = [], payInfo = ""; // staff view
 let payPublic = null; // {info, qr} for customers
-let staffLoaded = false, viewRoundId = null, builtFormFor = undefined;
+let staffLoaded = false, viewRoundId = null, farmRid = null, builtFormFor = undefined;
 
 /* ---------- passwords (kept only for this browser tab) ---------- */
 let pw = {farmer:"", admin:""};
@@ -617,7 +637,7 @@ $("payRound").addEventListener("change", () => { payRid = $("payRound").value; p
 $("payName").addEventListener("change", () => { payNm = $("payName").value; payInv = null; payReportOpen = false; payDone = ""; renderPayment(); loadPayInv(); });
 function setPay(html){ if(html === payLastHtml) return; payLastHtml = html; $("payView").innerHTML = html; }
 function invoiceHtml(inv){
-  const n = +inv.customers, info = payPublic?.info || "";
+  const n = +inv.customers;
   return `<article class="inv">
     <div class="inv-top"><div><div class="inv-farm">RichAnn Vegetable Farm</div><div class="inv-to">Bill to <b>${esc(inv.customer)}</b></div></div>
       <div class="inv-right"><div class="inv-word">INVOICE</div><div>Delivery ${esc(fmtDate(inv.date))}</div></div></div>
@@ -628,8 +648,7 @@ function invoiceHtml(inv){
       <tr><td colspan="3">Delivery fee (${peso(+inv.fee)}/${n} customer${n > 1 ? "s" : ""})</td><td class="n">${peso(+inv.share)}</td></tr>
       <tr class="inv-due"><td colspan="3">Total due</td><td class="n">${peso(+inv.total)}</td></tr>
     </tfoot></table>
-    <div class="inv-foot"><span class="pill ${inv.paid ? "ok" : "low"}">${inv.paid ? "PAID" : "PAYMENT DUE"}</span></div>
-    ${!inv.paid && info ? `<div class="inv-pay"><b>How to pay</b>\n${esc(info)}</div>` : ""}
+    <div class="inv-foot">${inv.paid ? `<span class="pill ok">PAID</span>` : inv.report ? `<span class="pill rep">PAYMENT REPORTED</span>` : `<span class="pill low">PAYMENT DUE</span>`}</div>
   </article>`;
 }
 function renderPayment(){
@@ -641,14 +660,18 @@ function renderPayment(){
   if(!payInv){ setPay(`<p class="hint">Loading…</p>`); return; }
   if(payInv.error){ setPay(`<div class="msg err">${esc(payInv.error)}</div>`); return; }
   if(payInv.missing){ setPay(`<p class="hint">No invoice found for this name.</p>`); return; }
-  const inv = payInv, info = payPublic?.info || "", qr = payPublic?.qr;
+  const inv = payInv, info = payPublic?.info || "", qr = payPublic?.qr, qr2 = payPublic?.qr2;
   let side;
   if(inv.paid){
     side = `<div class="card"><span class="pill ok">Paid ✓</span><p class="hint">Thank you! This invoice is paid.</p></div>`;
   } else {
-    const status = inv.report ? `<span class="pill rep">Payment reported · waiting for the farm to confirm</span>` : `<span class="pill low">Payment due</span>`;
+    const status = inv.report ? `<span class="pill rep">Payment reported · waiting for confirmation</span>` : `<span class="pill low">Payment due</span>`;
     const note = inv.report ? `<p class="hint">You reported this payment${inv.report.ref ? ` (ref ${esc(inv.report.ref)})` : ""} on ${dt(inv.report.at)}.</p>` : "";
-    const payBox = qr ? `<div class="pay-box"><div class="pay-text"><b>Scan to pay with GCash</b></div><img class="qr" src="${esc(qr)}" alt="GCash QR code"></div>` : "";
+    const qrs = [[qr, "GCash"], [qr2, "BPI"]].filter(x => x[0]);
+    const payBox = (info || qrs.length) ? `<div class="pay-how"><h2>How to pay</h2>
+        ${info ? `<div class="pay-info">${esc(info)}</div>` : ""}
+        ${qrs.length ? `<div class="qr-grid">${qrs.map(([src, label]) => `<figure><figcaption>${label} QR</figcaption><img class="qr" src="${esc(src)}" alt="${label} QR code"></figure>`).join("")}</div>` : ""}
+      </div>` : "";
     const form = (!inv.report || payReportOpen) ? `<div class="panel">
         <label class="f" for="pf-ref">GCash / bank reference no.<input id="pf-ref" class="name" autocomplete="off" maxlength="60" placeholder="e.g. 1234 567 890123"></label>
         <label class="f" for="pf-file">Screenshot of payment (optional)<input type="file" id="pf-file" accept="image/*"></label>
@@ -675,7 +698,7 @@ $("payView").addEventListener("click", async e => {
   try{
     const proof = file ? await shrinkImage(file, 1200, 0.7) : null;
     payInv = await rpc("customer_report_payment", {p_name: payNm, p_round: payRid, p_ref: ref, p_proof: proof});
-    payReportOpen = false; payDone = "Thank you! The farm will check your payment and mark it as paid.";
+    payReportOpen = false; payDone = "Thank you! Our staff will check your payment and mark it as paid.";
     btn.blur(); renderPayment();
   }catch(x){ err(x.message); btn.disabled = false; btn.textContent = "I have paid"; }
 });
@@ -691,13 +714,23 @@ function fillRoundSelects(){
   });
 }
 document.querySelectorAll(".roundSel").forEach(s => s.addEventListener("change", () => { viewRoundId = s.value; renderAll(); }));
+function fillFarmSelect(){
+  const ids = Object.keys(rounds).filter(id => !rounds[id].farmerDoneAt)
+    .sort((a,b)=>(rounds[b].date||b).localeCompare(rounds[a].date||a) || b.localeCompare(a));
+  if(!farmRid || !ids.includes(farmRid)) farmRid = ids.includes(currentId) ? currentId : (ids[0] || null);
+  const s = $("farmRound"); if(s === document.activeElement) return;
+  s.innerHTML = ids.length ? ids.map(id=>`<option value="${esc(id)}">${esc(fmtDate(rounds[id].date||id))}</option>`).join("") : `<option value="">No deliveries to pack</option>`;
+  s.value = farmRid || "";
+}
+$("farmRound").addEventListener("change", () => { farmRid = $("farmRound").value || null; renderAll(); });
 
 function renderFarmer(){
-  const r = rounds[viewRoundId], list = roundOrders(viewRoundId);
-  if(!r){ $("farmSum").innerHTML = `<tr><td colspan="5" class="empty">${staffLoaded?"No order form yet.":"Loading…"}</td></tr>`; $("farmOrders").innerHTML=""; $("farmBill").innerHTML=""; $("farmSub").textContent=peso(0); $("farmGrand").textContent=peso(0); $("farmProgress").textContent=""; return; }
+  fillFarmSelect();
+  const r = rounds[farmRid], list = roundOrders(farmRid);
+  if(!r){ $("farmSum").innerHTML = `<tr><td colspan="5" class="empty">${staffLoaded?"No deliveries to pack right now.":"Loading…"}</td></tr>`; $("farmOrders").innerHTML=""; $("farmBill").innerHTML=""; $("farmSub").textContent=peso(0); $("farmGrand").textContent=peso(0); $("farmProgress").textContent=""; return; }
   $("farmSum").innerHTML = r.items.map(it => {
     let ord=0, pk=0; for(const o of list) for(const l of o.lines||[]) if(l.itemId===it.id){ ord+=+l.qtyKg; if(l.packed) pk+=effKg(l); }
-    const av = availKg(viewRoundId,it);
+    const av = availKg(farmRid,it);
     return `<tr><td>${esc(it.name)}</td><td class="n">${it.limitKg==null?"—":qtyText(it.unit,it.limitKg)}</td><td class="n">${ord?qtyText(it.unit,r3(ord)):"—"}</td><td class="n">${pk?qtyText(it.unit,r3(pk)):"—"}</td><td class="n">${av==null?"—":qtyText(it.unit,av)}</td></tr>`;
   }).join("");
   let billSub=0;
@@ -708,7 +741,7 @@ function renderFarmer(){
     return `<tr><td>${esc(it.name)}</td><td class="n">${qtyText(it.unit,r3(q))}</td><td class="n">${priceText(it)}</td><td class="n">${peso(amt)}</td></tr>`;
   }).join("");
   $("farmBill").innerHTML = billRows || `<tr><td colspan="4" class="empty">Nothing sold yet.</td></tr>`;
-  const fee = roundFee(viewRoundId);
+  const fee = roundFee(farmRid);
   $("farmSub").textContent = peso(billSub);
   if(document.activeElement !== $("farmFee")) $("farmFee").value = fee;
   $("farmGrand").textContent = peso(billSub + fee);
@@ -749,21 +782,30 @@ $("farmOrders").addEventListener("change", e => {
   setLine(o.id, i, !!l.packed, r3(l.unit==="100g" ? v/1000 : v));
 });
 $("farmFee").addEventListener("change", () => {
-  const r = rounds[viewRoundId]; const v = parseFloat($("farmFee").value);
+  const r = rounds[farmRid]; const v = parseFloat($("farmFee").value);
   if(!r || isNaN(v) || v<0) return;
   r.deliveryFee = v; renderAll();
-  act("farmer_set_fee", {p_round:viewRoundId, p_fee:v});
+  act("farmer_set_fee", {p_round:farmRid, p_fee:v});
 });
 
 /* ---------- ADMIN ---------- */
-let confirmKey = null, proofs = {}, proofOpen = {}, payDirty = false, payQrNew = null, splitVal = {};
+let confirmKey = null, proofs = {}, proofOpen = {}, payDirty = false, payQrNew = null, payQr2New = null, splitVal = {};
 function latestReport(rid, key){ let r = null; for(const x of reports) if(x.roundId === rid && custKey(x) === key && (!r || x.at > r.at)) r = x; return r; }
 function renderPayCard(){
   if(!payDirty && document.activeElement !== $("payInfo")) $("payInfo").value = payInfo;
   const qr = payQrNew === "" ? null : (payQrNew || payPublic?.qr);
   $("payQrPrev").hidden = !qr; if(qr) $("payQrPrev").src = qr;
   $("payQrDel").hidden = !qr;
+  const qr2 = payQr2New === "" ? null : (payQr2New || payPublic?.qr2);
+  $("payQr2Prev").hidden = !qr2; if(qr2) $("payQr2Prev").src = qr2;
+  $("payQr2Del").hidden = !qr2;
 }
+$("payQr2").addEventListener("change", async () => {
+  const f = $("payQr2").files[0]; if(!f) return;
+  try{ payQr2New = await shrinkImage(f, 700, 0.9); payDirty = true; renderPayCard(); }
+  catch(e){ const m=$("payMsg"); m.className="msg err"; m.textContent=e.message; m.hidden=false; }
+});
+$("payQr2Del").addEventListener("click", () => { payQr2New = ""; $("payQr2").value = ""; payDirty = true; renderPayCard(); });
 $("payInfo").addEventListener("input", () => { payDirty = true; });
 $("payQr").addEventListener("change", async () => {
   const f = $("payQr").files[0]; if(!f) return;
@@ -776,7 +818,8 @@ $("savePay").addEventListener("click", async () => {
   $("savePay").disabled = true;
   try{
     await rpc("admin_set_pay_info", {p_pw:pw.admin, p_info:$("payInfo").value.trim(), p_qr:payQrNew});
-    payDirty = false; payQrNew = null; $("payQr").value = "";
+    if(payQr2New !== null) await rpc("admin_set_pay_qr2", {p_pw:pw.admin, p_qr:payQr2New});
+    payDirty = false; payQrNew = null; payQr2New = null; $("payQr").value = ""; $("payQr2").value = "";
     await loadPay(true); await loadStaff(); say("Payment details saved.", true);
   }catch(e){ if(e.wrongPw) lockAll(); else say("Could not save: " + e.message); }
   finally{ $("savePay").disabled = false; }
@@ -809,6 +852,12 @@ function reportLine(rid, key, name){
     row: open ? `<tr><td colspan="4"><img class="proof" src="${esc(proofs[rp.id])}" alt="Payment screenshot from ${esc(name)}"></td></tr>` : ""
   };
 }
+function farmRow(rid){
+  const r = rounds[rid];
+  if(r.farmerDoneAt) return `<div class="farm-row"><span class="pill ok">Vegetables received · farmer paid</span><span class="detail">${esc(dt(r.farmerDoneAt))}</span>
+    <button type="button" class="link" data-farm-undo="${esc(rid)}">${confirmKey === "fundo:" + rid ? "Confirm: show it on the Farmer page again" : "Undo"}</button></div>`;
+  return `<div class="farm-row"><button type="button" data-farm-done="${esc(rid)}">${confirmKey === "fdone:" + rid ? "Confirm: received & paid (clears it from the Farmer page)" : "Vegetables received & farmer paid"}</button></div>`;
+}
 function deliveryHtml(rid){
   const r = rounds[rid];
   const invs = invoices.filter(i => i.roundId === rid);
@@ -819,10 +868,10 @@ function deliveryHtml(rid){
       T += +i.total; if(i.paid) P++; else U += +i.total;
       const rp = i.paid ? {line:"", row:""} : reportLine(rid, i.key, i.customer);
       const k = "inv:" + i.id;
-      return `<tr><td><div class="cust">${esc(i.customer)}</div>${rp.line}</td>
+      return `<tr><td><div class="cust">${esc(i.customer)}</div></td>
         <td class="n"><b>${peso(+i.total)}</b></td>
         <td><button type="button" class="${i.paid ? "done" : ""}" data-inv-paid="${esc(i.id)}">${i.paid ? "✓ Paid" : "Mark paid"}</button></td>
-        <td><button type="button" class="danger" data-inv-del="${esc(i.id)}" aria-label="Delete ${esc(i.customer)}'s invoice">${confirmKey === k ? "Delete?" : "✕"}</button></td></tr>${rp.row}`;
+        <td><button type="button" class="danger" data-inv-del="${esc(i.id)}" aria-label="Delete ${esc(i.customer)}'s invoice">${confirmKey === k ? "Delete?" : "✕"}</button></td></tr>${rp.line ? `<tr class="rep-row"><td colspan="4">${rp.line}</td></tr>` : ""}${rp.row}`;
     }).join("");
     const f = invs[0], n = +f.customers;
     const allPaid = P === invs.length;
@@ -833,6 +882,7 @@ function deliveryHtml(rid){
       <tbody>${rows}</tbody>
       <tfoot><tr><td>${invs.length} invoice${invs.length>1?"s":""} · ${P} paid</td><td class="n">${peso(T)}</td><td colspan="2">Unpaid ${peso(U)}</td></tr></tfoot></table></div>
       ${P === 0 ? `<div class="row"><button type="button" class="link" data-redo="${esc(rid)}">${confirmKey === "redo:" + rid ? "Confirm: delete these invoices so you can create them again" : "Redo invoices"}</button></div>` : ""}
+      ${farmRow(rid)}
     </div>`;
   }
   const groups = customerGroups(rid);
@@ -869,6 +919,7 @@ function deliveryHtml(rid){
       <p class="hint">After you create invoices, the delivery fee and the split are fixed. Customers see their invoice on the Payment page.</p>
       <div><button type="button" class="primary" data-create="${esc(rid)}">${confirmKey === ck ? `Confirm: create ${groups.length} invoice${groups.length>1?"s":""}` : "Create invoices"}</button></div>
     </div>
+    ${farmRow(rid)}
   </div>`;
 }
 function renderDeliveries(){
@@ -911,6 +962,12 @@ $("deliveries").addEventListener("click", async e => {
     return confirmThen("create:" + rid, async () => {
       cr.disabled = true; cr.textContent = "Creating…";
       await act("admin_create_invoices", {p_round: rid, p_split: split}); delete splitVal[rid]; }); }
+  const fd = e.target.closest("button[data-farm-done]");
+  if(fd){ const rid = fd.dataset.farmDone;
+    return confirmThen("fdone:" + rid, () => { rounds[rid].farmerDoneAt = new Date().toISOString(); renderAdmin(); act("admin_set_farmer_done", {p_round: rid, p_done: true}); }); }
+  const fu = e.target.closest("button[data-farm-undo]");
+  if(fu){ const rid = fu.dataset.farmUndo;
+    return confirmThen("fundo:" + rid, () => { rounds[rid].farmerDoneAt = null; renderAdmin(); act("admin_set_farmer_done", {p_round: rid, p_done: false}); }); }
   const rd = e.target.closest("button[data-redo]");
   if(rd){ const rid = rd.dataset.redo;
     return confirmThen("redo:" + rid, () => act("admin_delete_invoices", {p_round: rid})); }
@@ -1029,8 +1086,15 @@ $("savePw").onclick = async () => {
 function renderAll(){
   const t = tab(), a = document.activeElement;
   const r = t==="order" ? form.round : rounds[currentId];
-  $("roundLabel").textContent = !configured ? "Setup needed" : t==="payment" ? "Invoices & payment" : r ? `Delivery ${fmtDate(r.date)} · ${r.open?"Taking orders":"Orders closed"}` : "No order form yet";
+  $("roundLabel").textContent = !configured ? "Setup needed" : t==="payment" ? "Invoices & payment" : t==="order" ? "" : r ? `Delivery ${fmtDate(r.date)} · ${r.open?"Taking orders":"Orders closed"}` : "No order form yet";
   if(t==="payment"){ renderPayment(); return; }
+  if(t==="order"){
+    const fr = form.round;
+    $("orderBanner").hidden = !fr;
+    if(fr){ $("bannerDate").textContent = `Delivery: ${fmtDate(fr.date)}`;
+      const st = $("bannerState"); st.textContent = fr.open ? "Taking orders now" : "Orders are closed";
+      st.className = "b-state " + (fr.open ? "open" : "closed"); }
+  }
   if(t==="order"){ if(builtFormFor !== (form.round ? form.round.id : null)) buildOrderForm(); else updateOrderForm(); return; }
   fillRoundSelects();
   if(t==="farmer" && isUnlocked("farmer") && !(a && $("farmOrders").contains(a) && a.tagName==="INPUT")) renderFarmer();
