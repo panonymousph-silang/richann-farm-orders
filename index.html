@@ -103,6 +103,7 @@ img.proof{display:block;max-width:min(100%,360px);height:auto;border-radius:8px;
 .create-box{display:flex;flex-direction:column;gap:10px;background:var(--sky);border:1.5px solid var(--line);border-radius:10px;padding:12px}
 .warn{color:var(--warn);font-size:.85rem;margin:0}
 .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+a.btn-like{text-decoration:none}
 .btn-like{display:inline-block;font-weight:700;border-radius:8px;border:1.5px solid var(--sky-deep);color:var(--sky-deep);background:var(--bg);padding:6px 14px;cursor:pointer}
 .file-pick{align-items:center}
 .file-pick input:focus-visible + .btn-like{outline:3px solid var(--sky-deep);outline-offset:2px}
@@ -156,6 +157,11 @@ input[type=file]{max-width:100%;font-size:.85rem}
       <div id="orderErr" class="msg err" hidden></div>
       <div><button type="submit" class="primary big" id="orderBtn">Confirm order</button></div>
     </form>
+    <div class="card" id="invReady" hidden>
+      <h2>Your invoice is ready</h2>
+      <p>Invoices for this delivery are ready, with the delivery fee included. Please check your total and pay on the Payment page.</p>
+      <div><a class="btn-like" href="#payment">Go to Payment</a></div>
+    </div>
     <div class="card" id="mySec" hidden>
       <h2>Check or change my order</h2>
       <label class="f" for="myName">Your name<select id="myName"></select></label>
@@ -363,7 +369,13 @@ window.addEventListener("hashchange", showTab);
 /* ---------- loading ---------- */
 async function loadForm(){
   if(!configured) return;
-  try{ form = await rpc("get_form"); if(!form.used) form.used = {}; showStatus(""); renderAll(); }
+  try{
+    form = await rpc("get_form"); if(!form.used) form.used = {};
+    // once invoices exist for this delivery, customers check their total on the Payment page instead
+    form.invoiced = false;
+    if(form.round && !form.round.open){ try{ const pl = await rpc("pay_list"); form.invoiced = (pl || []).some(d => d.id === form.round.id); }catch{} }
+    showStatus(""); renderAll();
+  }
   catch(e){ showStatus("Can't load the order form: " + e.message, true); }
 }
 async function loadStaff(){
@@ -525,7 +537,8 @@ let myName = "", my = null, myMode = "view", myEdit = null, myConfirmCancel = fa
 const sameName = (a,b) => String(a||"").trim().toLowerCase() === String(b||"").trim().toLowerCase();
 function fillMyNames(){
   const s = $("myName"), names = form.names || [];
-  $("mySec").hidden = !form.round;
+  $("mySec").hidden = !form.round || !!form.invoiced;
+  $("invReady").hidden = !form.invoiced;
   if(document.activeElement === s) return;
   const cur = names.find(n => sameName(n, myName)) || "";
   s.innerHTML = `<option value="">${names.length ? "Choose your name" : "No orders yet"}</option>` + names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
