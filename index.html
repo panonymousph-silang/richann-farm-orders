@@ -573,12 +573,20 @@ function renderMy(){
     orderPart = `<div class="msg ok"><b>We have your order, ${esc(my.customer)}.</b></div>
       <div class="tbl"><table><thead><tr><th>Vegetable</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Subtotal</th></tr></thead>
       <tbody>${rows}</tbody><tfoot><tr><td colspan="3">Total (delivery fee not included)</td><td class="n">${peso(tot)}</td></tr></tfoot></table></div>
-      ${canEdit ? `<div class="row"><button type="button" class="primary" id="myEditBtn">Change my order</button>
-        <button type="button" class="danger" id="myCancelBtn">${myConfirmCancel ? "Confirm: cancel my whole order" : "Cancel my order"}</button></div>`
-        : `<p class="hint">${my.locked ? "The farm has started packing your order, so it can't be changed here. Please message the farm." : "Orders are closed, so changes aren't possible here."}</p>`}
+      ${canEdit ? "" : `<p class="hint">${my.locked ? "The farm has started packing your order, so it can't be changed here. Please message the farm." : "Orders are closed, so changes aren't possible here."}</p>`}
+      <div class="row"><button type="button" class="primary" id="myCloseBtn">Looks good, close</button>
+        ${canEdit ? `<button type="button" id="myEditBtn">Change my order</button>
+        <button type="button" class="danger" id="myCancelBtn">${myConfirmCancel ? "Confirm: cancel my whole order" : "Cancel my order"}</button>` : ""}</div>
       <div id="myMsg" hidden></div>`;
   }
   if(!setMy(orderPart)) return;
+  $("myCloseBtn").onclick = () => {
+    const who = my.customer;
+    myName = ""; my = null; myMode = "view"; myConfirmCancel = false;
+    myFlash = `Your order is all set, ${who}. Thank you!`;
+    renderMy();
+    window.scrollTo({top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  };
   if(canEdit){
     $("myEditBtn").onclick = () => { myLastHtml = ""; startEdit(); };
     $("myCancelBtn").onclick = async () => {
