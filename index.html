@@ -299,7 +299,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const peso = n => { const v = Math.round(n*100)/100; return "₱" + v.toLocaleString("en-PH",{minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits:2}); };
 const r3 = n => Math.round(n*1000)/1000;
-const OPTS_KG = [[2,"2 kg"],[1.5,"1.5 kg"],[1,"1 kg"],[0.75,"3/4 kg"],[0.5,"1/2 kg"],[0.25,"1/4 kg"]];
+const OPTS_KG = [[2,"2 kg"],[1.5,"1.5 kg"],[1,"1 kg"],[0.75,"3/4 kg"],[0.5,"1/2 kg"],[0.25,"1/4 kg"],[0.1,"100 g"]];
 const OPTS_G  = [[0.1,"100 g"],[0.2,"200 g"],[0.3,"300 g"],[0.5,"500 g"]];
 const fmtDate = d => { try{ return new Date(d+"T00:00:00").toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric",year:"numeric"}); }catch{ return d; } };
 const qtyText = (unit, kg) => kg == null ? "—" : (unit === "100g" || kg < 1) ? Math.round(kg*1000) + " g" : r3(kg) + " kg";
